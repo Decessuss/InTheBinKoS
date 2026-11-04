@@ -1,0 +1,350 @@
+-- Shared guild list. Only current officer-chat speakers may publish records.
+local PREFIX = "ForeverKoS1"
+local frame = CreateFrame("Frame")
+local guild, db, me
+local roster, queue, requests, seen = {}, {}, {}, {}
+local announced={}
+local debugEnabled=false
+local debugSeen={}
+local elapsed, refresh, lastRequest = 0, 0, -100
+ForeverKoS = {}
+local function say(s) print("|cffff5555<in the bin> KoS List:|r " .. s) end
+local function clean(s) return (tostring(s or ""):gsub("[%c|]", " ")) end
+local function displayName(s) return clean(s):match("^[^-]+") or "" end
+ForeverKoS.DisplayName = displayName
+local function realm() return (GetNormalizedRealmName and GetNormalizedRealmName() or GetRealmName()):gsub("%s", "") end
+local function full(s)
+    if type(s) ~= "string" or s == "" then return nil end
+    s = s:match("^%s*(.-)%s*$")
+    if not s:find("-", 1, true) then s = s .. "-" .. realm() end
+    if #s > 100 or s:find("[%s%c|]") then return nil end
+    return s
+end
+local function key(s) local n = full(s); return n and string.lower(n) end
+local function unitName(unit)
+    local n, r = UnitFullName(unit)
+    if not n and UnitName then n,r=UnitName(unit) end
+    if not n then return nil end
+    return full(n .. "-" .. ((r and r ~= "") and r:gsub("%s", "") or realm()))
+end
+local function isOfficer(name)
+    local rank = roster[key(name)]
+    if rank == nil then return false end
+    if rank == 0 then return true end
+    -- Read-only API: never select or change a guild rank to inspect permissions.
+    if not (C_GuildInfo and C_GuildInfo.GuildControlGetRankFlags) then return false end
+    local ok, flags = pcall(C_GuildInfo.GuildControlGetRankFlags, rank + 1)
+    return ok and type(flags) == "table" and flags[4] == true
+end
+local function permitted(name)
+    if isOfficer(name) then return true end
+    local k=key(name)
+    local grant=db and db.grants and db.grants[k]
+    return k~=nil and roster[k]~=nil and grant~=nil and not grant.deleted
+end
+local function rebuild()
+    local g = GetGuildInfo("player")
+    me = unitName("player")
+    local scope = g and (g .. "@" .. realm()) or nil
+    if scope ~= guild then
+        guild, db = scope, nil
+        queue, seen, requests = {}, {}, {}
+        announced={}
+        lastRequest = -100
+        if scope then
+            ForeverKoSDB.guilds[scope] = ForeverKoSDB.guilds[scope] or {clock=0, records={}}
+            db = ForeverKoSDB.guilds[scope]
+        end
+    end
+    roster = {}
+    if not g then return end
+    for i=1, GetNumGuildMembers() do
+        local n, _, rank = GetGuildRosterInfo(i)
+        if n then roster[key(n)] = rank end
+    end
+end
+local function encode(s) return (s:gsub("([^%w%-%. ])", function(c) return string.format("%%%02X", string.byte(c)) end)) end
+local function decode(s) return (s:gsub("%%(%x%x)", function(c) return string.char(tonumber(c,16)) end)) end
+local function pack(r)
+    return table.concat({"R", r.rev, encode(r.editor), r.deleted and "1" or "0", encode(r.name), encode(r.reason)}, "\t")
+end
+local function merge(r)
+    if not db then return end
+    local k = key(r.name)
+    if not k then return end
+    local old = db.records[k]
+    db.clock = math.max(db.clock, r.rev)
+    if not old or r.rev > old.rev or (r.rev == old.rev and r.editor > old.editor) then
+        db.records[k] = r
+        return true
+    end
+end
+local function enqueue(msg, channel, target)
+    if #msg <= 250 and #queue < 5000 then
+        queue[#queue+1] = {msg, channel or "GUILD", target}
+    end
+end
+local function packGrant(r)
+    return table.concat({"G",r.rev,encode(r.editor),r.deleted and "1" or "0",encode(r.name)},"\t")
+end
+local function mergeGrant(r)
+    db.grants=db.grants or {}
+    local k=key(r.name)
+    local old=db.grants[k]
+    db.clock=math.max(db.clock,r.rev)
+    if not old or r.rev>old.rev or (r.rev==old.rev and r.editor>old.editor) then db.grants[k]=r end
+end
+function ForeverKoS.CanManageAccess() return db~=nil and isOfficer(me) end
+function ForeverKoS.SetEditor(name,enabled)
+    if not db or not isOfficer(me) then say("Only guild officers can grant or revoke access."); return end
+    name=full(name)
+    if not name or roster[key(name)]==nil then say("Enter a current guild member's character name."); return end
+    local r={name=name,editor=me,rev=db.clock+1,deleted=not enabled}
+    local message=packGrant(r)
+    if #message>250 then say("Character name is too long to sync."); return end
+    mergeGrant(r); enqueue(message)
+    say((enabled and "Granted list editing to " or "Revoked named editing access for ") .. displayName(name)
+        .. (not enabled and ". Guild officer permissions still apply." or "."))
+end
+local function publish(target)
+    if not db or (not target and not permitted(me)) then return end
+    -- Access records require a real officer sender; ordinary peer caches cannot confer permissions.
+    if isOfficer(me) then
+        for _,r in pairs(db.grants or {}) do enqueue(packGrant(r),target and "WHISPER" or "GUILD",target) end
+    end
+    for _, r in pairs(db.records) do
+        local message=pack(r)
+        -- Requested peer snapshots are explicitly distinct from officer edits.
+        if target then message="C" .. message:sub(2) end
+        enqueue(message, target and "WHISPER" or "GUILD", target)
+    end
+    if ForeverKoS.PublishSightings then ForeverKoS.PublishSightings(target) end
+end
+local function request()
+    if not db or GetTime() - lastRequest < 30 then return end
+    lastRequest = GetTime()
+    enqueue("Q")
+end
+local function receive(prefix, message, channel, sender)
+    if prefix ~= PREFIX or not db or type(message) ~= "string" or #message > 250 then return end
+    if channel ~= "GUILD" and channel ~= "WHISPER" then return end
+    local senderKey = key(sender)
+    if not senderKey or roster[senderKey] == nil or senderKey == key(me) then return end
+    if message:sub(1,2)=="G\t" then
+        if not isOfficer(sender) then return end
+        local revision,editor,deleted,name=message:match("^G\t(%d+)\t([^\t]+)\t([01])\t([^\t]+)$")
+        revision=tonumber(revision)
+        if not revision or revision>1000000000000 then return end
+        editor,name=decode(editor),decode(name)
+        if not full(editor) or not full(name) then return end
+        mergeGrant({name=name,editor=editor,rev=revision,deleted=deleted=="1"})
+        return
+    end
+    if message:sub(1,2) == "S\t" then
+        if ForeverKoS.ReceiveSighting then ForeverKoS.ReceiveSighting(message, sender, isOfficer(sender),channel~="GUILD") end
+        return
+    end
+    if message:sub(1,2)=="H\t" then
+        if channel=="WHISPER" and GetTime()-lastRequest<=1200 and ForeverKoS.ReceiveSighting then
+            ForeverKoS.ReceiveSighting("S" .. message:sub(2),sender,true,true)
+        end
+        return
+    end
+    if message == "Q" then
+        if GetTime() - (requests[senderKey] or -100) >= 60 then
+            requests[senderKey] = GetTime()
+            publish(sender)
+        end
+        return
+    end
+    local cached=message:sub(1,2)=="C\t"
+    if cached then
+        if channel~="WHISPER" or GetTime()-lastRequest>1200 then return end
+        message="R" .. message:sub(2)
+    elseif not permitted(sender) then return end
+    local v, editor, deleted, name, reason = message:match("^R\t(%d+)\t([^\t]+)\t([01])\t([^\t]+)\t([^\t]*)$")
+    v = tonumber(v)
+    if not v or v > 1000000000000 then return end
+    editor, name, reason = decode(editor), decode(name), decode(reason)
+    if not full(editor) or not full(name) or #reason > 60 or reason:find("[%c|]") then return end
+    merge({rev=v, editor=editor, deleted=deleted=="1", name=name, reason=reason})
+end
+local function edit(name, reason, deleted)
+    if not db or not permitted(me) then say("Editing requires current officer-chat speak permission and a loaded guild roster."); return end
+    name = full(name)
+    if not name then say("Use a player name or Name-Realm."); return end
+    -- Bound encoded record size, including multibyte names. Never save unsyncable edits.
+    local r = {rev=db.clock+1, editor=me, name=name, reason=clean(reason):sub(1,60), deleted=deleted}
+    if #pack(r) > 250 then say("Name/reason too long to sync; use a shorter reason."); return end
+    merge(r)
+    enqueue(pack(r))
+    say((deleted and "Removed " or "Added ") .. displayName(name) .. ".")
+end
+local function alert(name, reason, test, sighting)
+    if not test then
+        local k=key(name)
+        if k and announced[k] and GetTime()-announced[k]<60 then return end
+        if k then announced[k]=GetTime() end
+    end
+    local location = ""
+    if sighting then
+        local link=sighting.map~=0 and ForeverKoS.LinkForPosition and ForeverKoS.LinkForPosition(sighting.map,sighting.x,sighting.y)
+        location=link and (" — " .. link) or " — location unavailable"
+    elseif ForeverKoS.MakeSpotLink then
+        local ok, link = pcall(ForeverKoS.MakeSpotLink)
+        location = ok and link and (" — " .. link) or " — location unavailable"
+    end
+    say((test and "TEST: " or "Spotted: ") .. displayName(name)
+        .. " spotted by " .. displayName(sighting and sighting.spotter or me or unitName("player") or "you")
+        .. (reason ~= "" and (" — " .. clean(reason)) or "") .. location)
+    if db and db.sound ~= false then PlaySound(8959, "Master") end
+    local wa = ForeverAuras or WeakAuras
+    local zone=sighting and ForeverKoS.SightingZone and ForeverKoS.SightingZone(sighting) or GetZoneText() or ""
+    if wa and wa.ScanEvents then wa.ScanEvents("FOREVER_KOS_SPOTTED", name, reason, zone,
+        sighting and sighting.spotter or me) end
+end
+function ForeverKoS.NotifyGuildSighting(sighting)
+    if not db or db.enabled==false then return end
+    local r=db.records[key(sighting.name)]
+    if r and not r.deleted then alert(sighting.name,r.reason,false,sighting) end
+end
+local function check(unit)
+    local function explain(message)
+        if debugEnabled then
+            local tag=unit .. ": " .. message
+            if not debugSeen[tag] or GetTime()-debugSeen[tag]>=10 then
+                debugSeen[tag]=GetTime();say("DEBUG " .. tag)
+            end
+        end
+    end
+    if not db then explain("No active guild list.");return end
+    if not UnitExists(unit) then explain("No unit available.");return end
+    if not UnitIsPlayer(unit) then explain("Unit is not a player.");return end
+    local faction, own = UnitFactionGroup(unit), UnitFactionGroup("player")
+    if not faction or not own then explain("Faction unavailable.");return end
+    if faction == own then explain("Same faction.");return end
+    local name = unitName(unit)
+    local k = key(name)
+    local r = k and db.records[k]
+    if not name then explain("Player name unavailable.");return end
+    if not r or r.deleted then explain("Not on this list: " .. name);return end
+    if seen[k] and GetTime()-seen[k]<60 then explain("Sighting cooldown: " .. math.ceil(60-(GetTime()-seen[k])) .. "s");return end
+    explain("Matched " .. name .. "; recording and sending sighting.")
+    seen[k] = GetTime()
+    if ForeverKoS.RecordSighting then ForeverKoS.RecordSighting(name) end
+    if db.enabled ~= false then alert(name, r.reason, false) end
+end
+local function guardedCheck(unit)
+    if ForeverKoS.CheckPersonal then pcall(ForeverKoS.CheckPersonal,unit) end
+    -- A restricted/secret unit value must never break the rest of the addon.
+    local ok,err=pcall(check, unit)
+    if not ok and debugEnabled then
+        local tag=tostring(err)
+        if not debugSeen[tag] or GetTime()-debugSeen[tag]>=10 then debugSeen[tag]=GetTime();say("DEBUG error: " .. tag) end
+    end
+end
+-- Small UI interface; all changes still go through the same permission checks.
+function ForeverKoS.GetState()
+    local rows = {}
+    if db then
+        for _, r in pairs(db.records) do
+            if not r.deleted then rows[#rows+1] = {name=r.name, reason=r.reason, editor=r.editor,
+                sighting=ForeverKoS.GetSighting and ForeverKoS.GetSighting(r.name)} end
+        end
+    end
+    table.sort(rows, function(a,b) return a.name < b.name end)
+    return rows, db ~= nil and permitted(me), guild or "No guild", db and db.sound ~= false, db and db.enabled ~= false
+end
+function ForeverKoS.Settings()
+    ForeverKoSDB.ui = ForeverKoSDB.ui or {angle=220}
+    return ForeverKoSDB.ui
+end
+function ForeverKoS.GetRankLabel()
+    local guildName,rankName=GetGuildInfo("player")
+    if not guildName then return "Not in a guild" end
+    return "Rank: " .. clean(rankName or "Loading...")
+end
+function ForeverKoS.SightingContext() return db, me end
+function ForeverKoS.NameKey(name) return key(name) end
+function ForeverKoS.NormalizeName(name) return full(name) end
+function ForeverKoS.QueueSighting(message, target)
+    if GetGuildInfo("player") then enqueue(message, target and "WHISPER" or "GUILD", target) end
+end
+function ForeverKoS.Edit(name, reason, deleted) edit(name, reason, deleted) end
+function ForeverKoS.AddTarget(reason)
+    if not UnitIsPlayer("target") then say("Target a player first."); return end
+    edit(unitName("target"), reason or "", false)
+end
+function ForeverKoS.Test() alert("Example-" .. realm(), "Test alert", true) end
+function ForeverKoS.Sync() request() end
+function ForeverKoS.SetSound(value) if db then db.sound = value end end
+function ForeverKoS.SetAlerts(value) if db then db.enabled = value end end
+SLASH_FOREVERKOS1 = "/kos"
+SlashCmdList.FOREVERKOS = function(input)
+    local command, rest = input:match("^(%S*)%s*(.-)$")
+    command = string.lower(command or "")
+    if command == "" or command == "ui" then
+        if ForeverKoS.ToggleUI then ForeverKoS.ToggleUI() end
+    elseif command == "add" or command == "remove" then
+        local name, reason = rest:match("^(%S+)%s*(.*)$")
+        if not name or name == "target" then
+            if not UnitIsPlayer("target") then say("Target a player first."); return end
+            name = unitName("target")
+        end
+        edit(name, reason or "", command == "remove")
+    elseif command == "debug" then
+        debugEnabled=rest~="off";debugSeen={};say("Detection diagnostics " .. (debugEnabled and "on. Hover the enemy and copy the DEBUG line." or "off."))
+    elseif command == "sync" then request(); say("Requested cached list from online guild members (30-second cooldown).")
+    elseif command == "publish" then publish(); say("Publish requested; officer permission is required.")
+    elseif command == "test" then alert("Example-" .. realm(), "Test alert", true)
+    elseif command == "sound" and db then db.sound = rest ~= "off"; say("Sound " .. (db.sound and "on" or "off"))
+    elseif command == "alerts" and db then db.enabled = rest ~= "off"; say("Alerts " .. (db.enabled and "on" or "off"))
+    elseif command == "list" and db then
+        local names = {}
+        for _, r in pairs(db.records) do if not r.deleted then names[#names+1] = displayName(r.name) .. " — " .. r.reason .. " (" .. displayName(r.editor) .. ")" end end
+        table.sort(names)
+        say(#names .. " active entries.")
+        for _, n in ipairs(names) do say(clean(n)) end
+    elseif command == "status" then
+        say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
+        if not (C_GuildInfo and C_GuildInfo.GuildControlGetRankFlags) then say("This client lacks the rank-permission API; non-GM edits/sync are disabled pending compatibility work.") end
+    else
+        say("/kos add [Name-Realm|target] [reason]; /kos remove [Name-Realm|target]; /kos list; /kos sync; /kos publish; /kos test; /kos status; /kos sound on|off; /kos alerts on|off")
+    end
+end
+frame:SetScript("OnEvent", function(_, event, ...)
+    if event == "ADDON_LOADED" then
+        if ... ~= "InTheBinKoS" and ... ~= "ForeverKoS" then return end
+        ForeverKoSDB = ForeverKoSDB or {guilds={}}
+        ForeverKoSDB.guilds = ForeverKoSDB.guilds or {}
+        if C_ChatInfo then C_ChatInfo.RegisterAddonMessagePrefix(PREFIX) end
+    elseif event == "PLAYER_LOGIN" or event == "PLAYER_GUILD_UPDATE" or event == "GUILD_ROSTER_UPDATE" then
+        rebuild()
+        if event ~= "GUILD_ROSTER_UPDATE" and C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
+        request()
+    elseif event == "CHAT_MSG_ADDON" then receive(...)
+    elseif event == "NAME_PLATE_UNIT_ADDED" then guardedCheck(...)
+    elseif event == "PLAYER_TARGET_CHANGED" then guardedCheck("target")
+    elseif event == "UPDATE_MOUSEOVER_UNIT" then guardedCheck("mouseover") end
+end)
+frame:SetScript("OnUpdate", function(_, delta)
+    elapsed, refresh = elapsed + delta, refresh + delta
+    if elapsed >= 0.2 then
+        elapsed = 0
+        -- Mouseover identity can become readable after the initial event. Retry
+        -- while it exists; the per-enemy cooldown prevents duplicate reports.
+        if UnitExists("mouseover") then guardedCheck("mouseover") end
+        local item = table.remove(queue, 1)
+        if item and db and C_ChatInfo then
+            -- Recheck permissions at send time in case an officer was demoted.
+            local cacheReply=item[2]=="WHISPER" and (item[1]:sub(1,2)=="C\t" or item[1]:sub(1,2)=="H\t")
+            if item[1] == "Q" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
+        end
+    end
+    if refresh >= 300 then
+        refresh = 0
+        if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
+        request()
+    end
+end)
+for _, e in ipairs({"ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_GUILD_UPDATE", "GUILD_ROSTER_UPDATE", "CHAT_MSG_ADDON", "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT"}) do frame:RegisterEvent(e) end

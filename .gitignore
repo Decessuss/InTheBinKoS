@@ -1,0 +1,12 @@
+.release/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.env
+WTF/
+SavedVariables/
+*.lua.bak
+*.zip
+.DS_Store
+Thumbs.db
