@@ -94,7 +94,8 @@ SlashCmdList.FOREVERKOS=function(input)
     command=string.lower(command or "")
     if command=="personal" or command=="guild" then api.SetPersonalMode(command=="personal");return end
     if personal and (command=="add" or command=="remove") then
-        local name,reason=rest:match("^(%S+)%s*(.*)$")
+        local name,reason,problem=api.ParseNameReason(rest)
+        if problem then say(problem);return end
         if not name or name=="target" then name=nameOf("target") end
         return api.Edit(name,reason or "",command=="remove")
     end

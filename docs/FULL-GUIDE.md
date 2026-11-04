@@ -66,7 +66,7 @@ Authorized editors can enter a player and optional reason, then press **Add / Sa
 
 Member clients see the list, search, sorting and page controls. Below the page buttons they see only **Sound** and **Sighting alerts** checkboxes. Editing fields and all footer buttons are hidden. Members can right-click a listed player to pin a saved sighting, use `/kos sync` to request updates, and use `/kos test` to test alerts. Officers retain the complete controls.
 
-Names entered without a realm refer to your current realm. `Name-Realm` remains accepted for explicit matching even though realm suffixes are hidden in the display. The current parser rejects whitespace inside names; WoWForever's actual character-name API format must be checked in-game before release deployment.
+Names entered without a realm refer to your current realm. `Name-Realm` remains accepted for explicit matching even though realm suffixes are hidden in the display. First and last names are supported. Enter the complete name in the UI. In slash commands, quote a name containing spaces: `/kos add "First Last" Reason here` and `/kos remove "First Last"`. The same syntax works in Personal mode. Existing one-word names and target commands still work. Names are case-insensitive for matching, and repeated ordinary spaces are normalized. All guild members should update to 0.5.1 to sync names containing spaces. Actual WoWForever name API behavior still requires in-game testing.
 
 Reasons are limited to 60 bytes and sanitized for chat formatting. Very long encoded names or reasons can be rejected if they exceed the addon-message limit; use a shorter reason when prompted.
 

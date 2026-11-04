@@ -6,6 +6,6 @@ runtime=LuaRuntime(unpack_returned_tuples=True)
 for path in root.glob('*.lua'):
     result=runtime.eval('loadstring')(path.read_text(encoding='utf-8'))
     assert not isinstance(result,tuple),f'Lua syntax failure: {path.name}: {result}'
-for name in ['test_kos','test_sightings','test_guild_alerts','test_grants','test_personal','test_peer_sync','test_mouseover']:
+for name in ['test_kos','test_sightings','test_guild_alerts','test_grants','test_personal','test_peer_sync','test_mouseover','test_full_names']:
     runpy.run_path(str(root/'tests'/f'{name}.py'))
 print('All standalone release tests passed.')

@@ -14,12 +14,31 @@ local function displayName(s) return clean(s):match("^[^-]+") or "" end
 ForeverKoS.DisplayName = displayName
 local function realm() return (GetNormalizedRealmName and GetNormalizedRealmName() or GetRealmName()):gsub("%s", "") end
 local function full(s)
-    if type(s) ~= "string" or s == "" then return nil end
-    s = s:match("^%s*(.-)%s*$")
+    if type(s) ~= "string" or s:find("[%c|]") then return nil end
+    s = s:match("^ *(.-) *$"):gsub(" +", " ")
+    if s == "" then return nil end
     if not s:find("-", 1, true) then s = s .. "-" .. realm() end
-    if #s > 100 or s:find("[%s%c|]") then return nil end
+    local character, server = s:match("^([^-]+)%-([^%-]+)$")
+    if #s > 100 or not character or character:match("^ ") or character:match(" $")
+        or not server or server:find("%s") then return nil end
     return s
 end
+-- Quoted names support spaces while keeping existing single-name commands compatible.
+local function parseNameReason(input)
+    local text = input:match("^ *(.-) *$")
+    local quote = text:sub(1,1)
+    if quote == '"' or quote == "'" then
+        local finish = text:find(quote,2,true)
+        if not finish then return nil,nil,"Close the quoted player name." end
+        local tail = text:sub(finish+1)
+        if tail ~= "" and not tail:match("^%s") then return nil,nil,"Put a space after the quoted player name." end
+        local name = text:sub(2,finish-1)
+        if name == "" then return nil,nil,"Enter a player name inside the quotes." end
+        return name,tail:match("^%s*(.*)$")
+    end
+    return text:match("^(%S+)%s*(.*)$")
+end
+ForeverKoS.ParseNameReason = parseNameReason
 local function key(s) local n = full(s); return n and string.lower(n) end
 local function unitName(unit)
     local n, r = UnitFullName(unit)
@@ -172,7 +191,7 @@ end
 local function edit(name, reason, deleted)
     if not db or not permitted(me) then say("Editing requires current officer-chat speak permission and a loaded guild roster."); return end
     name = full(name)
-    if not name then say("Use a player name or Name-Realm."); return end
+    if not name then say("Use a full player name or Name-Realm."); return end
     -- Bound encoded record size, including multibyte names. Never save unsyncable edits.
     local r = {rev=db.clock+1, editor=me, name=name, reason=clean(reason):sub(1,60), deleted=deleted}
     if #pack(r) > 250 then say("Name/reason too long to sync; use a shorter reason."); return end
@@ -286,7 +305,8 @@ SlashCmdList.FOREVERKOS = function(input)
     if command == "" or command == "ui" then
         if ForeverKoS.ToggleUI then ForeverKoS.ToggleUI() end
     elseif command == "add" or command == "remove" then
-        local name, reason = rest:match("^(%S+)%s*(.*)$")
+        local name, reason, problem = parseNameReason(rest)
+        if problem then say(problem); return end
         if not name or name == "target" then
             if not UnitIsPlayer("target") then say("Target a player first."); return end
             name = unitName("target")
@@ -309,7 +329,7 @@ SlashCmdList.FOREVERKOS = function(input)
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         if not (C_GuildInfo and C_GuildInfo.GuildControlGetRankFlags) then say("This client lacks the rank-permission API; non-GM edits/sync are disabled pending compatibility work.") end
     else
-        say("/kos add [Name-Realm|target] [reason]; /kos remove [Name-Realm|target]; /kos list; /kos sync; /kos publish; /kos test; /kos status; /kos sound on|off; /kos alerts on|off")
+        say("/kos add [Name-Realm|target] [reason] (quote names with spaces); /kos remove [Name-Realm|target]; /kos list; /kos sync; /kos publish; /kos test; /kos status; /kos sound on|off; /kos alerts on|off")
     end
 end
 frame:SetScript("OnEvent", function(_, event, ...)

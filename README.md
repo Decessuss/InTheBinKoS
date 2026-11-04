@@ -57,7 +57,11 @@ The repository uses a small explicit packaging script so release archives contai
 ```sh
 python -m pip install -r requirements-dev.txt
 python tests/run_tests.py
-python scripts/package.py --version 0.5.0
+python scripts/package.py --version 0.5.1
 ```
 
 Tests use Lua 5.1 through Lupa and simulated WoW APIs. They do not replace multiplayer/client testing. No open-source license has been selected yet; the guild logo is supplied artwork.
+
+### 0.5.1: first and last names
+
+Enter the full character name in the UI, or use `/kos add "First Last" Reason` and `/kos remove "First Last"`. Guild entries, named editor grants, sightings and private lists support spaces. Update every guild member to 0.5.1 for full-name syncing. Existing single-word entries remain compatible. No BattleTag override is included.
