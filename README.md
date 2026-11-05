@@ -78,3 +78,12 @@ Guild rules match the full guild name (case-insensitive, repeated ordinary space
 Fresh guild-member sightings alert online addon users with the actual enemy name and the matching guild/reason. Guild rows show the most recently seen member and the spotter's position; right-click the row to pin it. Sightings are reports, not verified remote identity or exact enemy coordinates. Removing a guild stops future guild-rule matches; existing explicit player entries continue to apply.
 
 Guild rules sync automatically with your own guild and stay separate from other guilds' lists. All participants should update to **0.5.2**: earlier versions cannot process guild rules or the new guild-tagged sightings. The optional aura listens to the same event and does not require a fresh import. Game-client detection still requires in-game verification.
+
+
+### Automated CurseForge publishing
+
+Version tags (`v*`) validate the addon, publish the GitHub ZIP and submit the same package to CurseForge project 1784566. CurseForge uploads are Beta (Alpha for `-alpha` tags), WoW Forever 1.60.1 only, and publish automatically after approval. The GitHub release and CurseForge upload run independently after validation, so a CurseForge failure does not block GitHub downloads.
+
+One-time setup: create a CurseForge **author upload token** and store it in GitHub repository Settings → Secrets and variables → Actions as **CF_API_TOKEN**. Never commit the token. Run the release workflow manually with **check_curseforge** enabled to verify the token and version lookup without uploading a duplicate file. A missing/invalid secret fails clearly. This does not bypass CurseForge moderation.
+
+Before retrying an upload job after a connection error, check CurseForge Files first: the server might have accepted it before the timeout. Do not rerun successful upload jobs, as CurseForge can create duplicate files. Version 0.5.2 was already uploaded manually and should not be submitted again.

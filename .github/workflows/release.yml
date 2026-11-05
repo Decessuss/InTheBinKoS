@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      check_curseforge:
+        description: 'Verify CurseForge token and game version without uploading'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -41,4 +46,43 @@ jobs:
         run: |
           flags=()
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" dist/*.zip --verify-tag --title "$GITHUB_REF_NAME" --generate-notes "${flags[@]}"
+          asset="dist/InTheBinKoS-${GITHUB_REF_NAME}-forever.zip"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$asset" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$asset" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes "${flags[@]}"
+          fi
+
+  curseforge:
+    name: Upload CurseForge beta
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: validate
+    runs-on: ubuntu-latest
+    concurrency:
+      group: curseforge-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python scripts/package.py --version "$GITHUB_REF_NAME"
+      - name: Submit CurseForge file
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python scripts/upload_curseforge.py --tag "$GITHUB_REF_NAME"
+
+  check-curseforge:
+    name: Check CurseForge connection without uploading
+    if: github.event_name == 'workflow_dispatch' && inputs.check_curseforge
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Validate secret and Forever version
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python scripts/upload_curseforge.py --tag v0.5.2 --check-only
