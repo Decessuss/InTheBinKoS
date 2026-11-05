@@ -9,12 +9,11 @@ local function records()
     db.sightings=db.sightings or {}
     return db,me
 end
-local function active(db,name)
-    local r=db.records[api.NameKey(name)]
-    return r and not r.deleted
+local function active(db,name,guildName)
+    return api.MatchRecord(name,guildName)~=nil
 end
 local function pack(r)
-    return table.concat({"S",r.stamp,encode(r.name),r.map,math.floor(r.x*100000+0.5),math.floor(r.y*100000+0.5),encode(r.spotter)},"\t")
+    return table.concat({"S",r.stamp,encode(r.name),r.map,math.floor(r.x*100000+0.5),math.floor(r.y*100000+0.5),encode(r.spotter)},"\t") .. (r.guildName and ("\t" .. encode(r.guildName)) or "")
 end
 local function merge(db,r)
     local key=api.NameKey(r.name)
@@ -24,12 +23,12 @@ local function merge(db,r)
         return true
     end
 end
-function api.RecordSighting(name)
+function api.RecordSighting(name,guildName)
     local db,me=records()
-    if not db or not me or not active(db,name) then return end
+    if not db or not me or not active(db,name,guildName) then return end
     local map,x,y
     if api.SpotPosition then map,x,y=api.SpotPosition() end
-    local r={name=name,spotter=me,stamp=now(),map=map or 0,x=x or 0,y=y or 0}
+    local r={name=name,spotter=me,stamp=now(),map=map or 0,x=x or 0,y=y or 0,guildName=guildName}
     if merge(db,r) then
         local message=pack(r)
         if #message<=250 then api.QueueSighting(message) end
@@ -38,6 +37,13 @@ end
 function api.ReceiveSighting(message,sender,isOfficer,isHistory)
     local db=records()
     if not db then return end
+    local guildName
+    local base,encodedGuild=message:match("^(S\t[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+)\t([^\t]+)$")
+    if base then
+        guildName=decode(encodedGuild)
+        if not api.NormalizeGuildName or not api.NormalizeGuildName(guildName) then return end
+        message=base
+    end
     local stamp,name,map,x,y,spotter=message:match("^S\t(%d+)\t([^\t]+)\t(%d+)\t(%d+)\t(%d+)\t([^\t]+)$")
     stamp,map,x,y=tonumber(stamp),tonumber(map),tonumber(x),tonumber(y)
     if not stamp or not map or not x or not y then return end
@@ -49,8 +55,8 @@ function api.ReceiveSighting(message,sender,isOfficer,isHistory)
     if map==0 and (x~=0 or y~=0) then return end
     if map~=0 and x==0 and y==0 then return end
     if map~=0 and C_Map and C_Map.GetMapInfo and not C_Map.GetMapInfo(map) then return end
-    if not active(db,name) then return end
-    local r={name=name,spotter=spotter,stamp=stamp,map=map,x=x/100000,y=y/100000}
+    if not active(db,name,guildName) then return end
+    local r={name=name,spotter=spotter,stamp=stamp,map=map,x=x/100000,y=y/100000,guildName=guildName}
     local changed=merge(db,r)
     local age=now()-stamp
     if changed and not isHistory and age>=-15 and age<=30
@@ -63,7 +69,7 @@ function api.PublishSightings(target)
     if not db then return end
     -- Guild peers can serve requested history; unsolicited broadcasts remain officer-only.
     for _,r in pairs(db.sightings) do
-        if active(db,r.name) and r.stamp>=now()-7*86400 then
+        if active(db,r.name,r.guildName) and r.stamp>=now()-7*86400 then
             local message=pack(r)
             if target then message="H" .. message:sub(2) end
             if #message<=250 then api.QueueSighting(message,target) end

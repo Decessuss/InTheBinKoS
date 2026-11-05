@@ -137,6 +137,7 @@ local function publish(target)
         if target then message="C" .. message:sub(2) end
         enqueue(message, target and "WHISPER" or "GUILD", target)
     end
+    if ForeverKoS.PublishGuildTargets then ForeverKoS.PublishGuildTargets(target) end
     if ForeverKoS.PublishSightings then ForeverKoS.PublishSightings(target) end
 end
 local function request()
@@ -149,6 +150,7 @@ local function receive(prefix, message, channel, sender)
     if channel ~= "GUILD" and channel ~= "WHISPER" then return end
     local senderKey = key(sender)
     if not senderKey or roster[senderKey] == nil or senderKey == key(me) then return end
+    if ForeverKoS.ReceiveGuildTarget and ForeverKoS.ReceiveGuildTarget(message,sender,channel,permitted(sender),GetTime()-lastRequest<=1200) then return end
     if message:sub(1,2)=="G\t" then
         if not isOfficer(sender) then return end
         local revision,editor,deleted,name=message:match("^G\t(%d+)\t([^\t]+)\t([01])\t([^\t]+)$")
@@ -224,8 +226,8 @@ local function alert(name, reason, test, sighting)
 end
 function ForeverKoS.NotifyGuildSighting(sighting)
     if not db or db.enabled==false then return end
-    local r=db.records[key(sighting.name)]
-    if r and not r.deleted then alert(sighting.name,r.reason,false,sighting) end
+    local r=ForeverKoS.MatchRecord(sighting.name,sighting.guildName)
+    if r and not r.deleted then alert(sighting.name,ForeverKoS.MatchReason(r),false,sighting) end
 end
 local function check(unit)
     local function explain(message)
@@ -244,14 +246,19 @@ local function check(unit)
     if faction == own then explain("Same faction.");return end
     local name = unitName(unit)
     local k = key(name)
-    local r = k and db.records[k]
+    local enemyGuild
+    if ForeverKoS.NormalizeGuildName then
+        local ok,value=pcall(function() return ForeverKoS.NormalizeGuildName(GetGuildInfo(unit)) end)
+        if ok then enemyGuild=value end
+    end
+    local r = ForeverKoS.MatchRecord(name,enemyGuild)
     if not name then explain("Player name unavailable.");return end
     if not r or r.deleted then explain("Not on this list: " .. name);return end
     if seen[k] and GetTime()-seen[k]<60 then explain("Sighting cooldown: " .. math.ceil(60-(GetTime()-seen[k])) .. "s");return end
     explain("Matched " .. name .. "; recording and sending sighting.")
     seen[k] = GetTime()
-    if ForeverKoS.RecordSighting then ForeverKoS.RecordSighting(name) end
-    if db.enabled ~= false then alert(name, r.reason, false) end
+    if ForeverKoS.RecordSighting then ForeverKoS.RecordSighting(name,enemyGuild) end
+    if db.enabled ~= false then alert(name, ForeverKoS.MatchReason(r), false) end
 end
 local function guardedCheck(unit)
     if ForeverKoS.CheckPersonal then pcall(ForeverKoS.CheckPersonal,unit) end
@@ -283,6 +290,13 @@ function ForeverKoS.GetRankLabel()
     if not guildName then return "Not in a guild" end
     return "Rank: " .. clean(rankName or "Loading...")
 end
+function ForeverKoS.MatchRecord(name)
+    local k=key(name);local r=db and k and db.records[k]
+    return r and not r.deleted and r or nil
+end
+function ForeverKoS.MatchReason(r) return r.reason end
+function ForeverKoS.CanEditShared() return db~=nil and permitted(me) end
+function ForeverKoS.QueueGuildTarget(message,target) enqueue(message,target and "WHISPER" or "GUILD",target) end
 function ForeverKoS.SightingContext() return db, me end
 function ForeverKoS.NameKey(name) return key(name) end
 function ForeverKoS.NormalizeName(name) return full(name) end
@@ -357,7 +371,7 @@ frame:SetScript("OnUpdate", function(_, delta)
         local item = table.remove(queue, 1)
         if item and db and C_ChatInfo then
             -- Recheck permissions at send time in case an officer was demoted.
-            local cacheReply=item[2]=="WHISPER" and (item[1]:sub(1,2)=="C\t" or item[1]:sub(1,2)=="H\t")
+            local cacheReply=item[2]=="WHISPER" and (item[1]:sub(1,2)=="C\t" or item[1]:sub(1,2)=="H\t" or item[1]:sub(1,2)=="U\t")
             if item[1] == "Q" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
         end
     end

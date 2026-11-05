@@ -2,10 +2,11 @@
 ## Title: <in the bin> KoS List
 ## Notes: Officer-managed guild KoS list and local sighting alerts.
 ## Author: Guild custom addon
-## Version: 0.5.1
+## Version: 0.5.2
 ## SavedVariables: ForeverKoSDB, ForeverKoSTestDB
 Core.lua
 Locations.lua
 Sightings.lua
+Guilds.lua
 Personal.lua
 UI.lua

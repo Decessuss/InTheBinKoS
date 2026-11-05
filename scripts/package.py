@@ -6,12 +6,12 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser()
-parser.add_argument('--version',default='0.5.1')
+parser.add_argument('--version',default='0.5.2')
 args=parser.parse_args()
 version=args.version.removeprefix('v')
 if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?',version):
     raise SystemExit('Version must look like 0.5.0 or 0.5.1-beta.1')
-files=['Core.lua','Locations.lua','Sightings.lua','Personal.lua','UI.lua','README.md','Media/GuildBackground.tga']
+files=['Core.lua','Locations.lua','Sightings.lua','Guilds.lua','Personal.lua','UI.lua','README.md','Media/GuildBackground.tga']
 files += ['docs/FULL-GUIDE.md','docs/ForeverKoS-ForeverAura-import.txt']
 for file in files:
     if not (ROOT/file).is_file(): raise SystemExit('Missing release file: '+file)
@@ -32,5 +32,5 @@ for flavor,interface,suffix in [('forever','16001','-forever')]:
     with zipfile.ZipFile(path) as archive:
         assert archive.testzip() is None
         assert all(n.startswith('InTheBinKoS/') for n in archive.namelist())
-        assert 'Personal.lua' in archive.read('InTheBinKoS/InTheBinKoS.toc').decode()
+        assert all(module in archive.read('InTheBinKoS/InTheBinKoS.toc').decode() for module in ('Guilds.lua','Personal.lua'))
     print(path.name)

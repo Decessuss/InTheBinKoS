@@ -19,7 +19,7 @@ local function data()
     return ForeverKoSDB.personal[me],me
 end
 function api.IsPersonalMode() return personal end
-function api.SetPersonalMode(value) personal=value and true or false end
+function api.SetPersonalMode(value) personal=value and true or false;if api.SetGuildMode then api.SetGuildMode(false) end end
 local guildState,guildEdit,guildTarget=api.GetState,api.Edit,api.AddTarget
 local guildSound,guildAlerts,guildTest,guildAccess=api.SetSound,api.SetAlerts,api.Test,api.CanManageAccess
 function api.GetState()

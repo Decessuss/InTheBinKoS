@@ -199,3 +199,16 @@ For a Lua error, capture its exact text, your game client, test/release build, `
 Before guild-wide use, confirm an officer can add/remove entries, a normal member can view but cannot edit them, and a normal member's sighting updates another member's last-seen row. Check search, latest-first sorting, last-seen pins, persistence after reload, removal after an older copy reconnects, and permission changes after a roster refresh. Finally test the native pin and the styled card in WoWForever itself.
 
 The addon never reveals stealthed/hidden players whose information the client does not expose, scans an entire zone, auto-targets enemies, or automatically attacks. It does not broadcast sightings as public guild chat messages. Shared sightings are approximate observations, not verified enemy coordinates.
+
+
+### 0.5.2: whole-guild KoS entries
+
+Open **KoS Guilds** beside Guild List and Personal List. Officers and granted editors can enter an enemy guild's full name and reason, then Add / Save, or target an opposing-faction member and click **Target Guild**. Select a guild row to remove it. Members can view the list and report sightings automatically.
+
+Commands: `/kos addguild "Enemy Guild" Reason` and `/kos removeguild "Enemy Guild"`.
+
+Guild rules match the full guild name (case-insensitive, repeated ordinary spaces normalized). Hyphens are preserved. The addon must be able to read the enemy player's guild through the game API; guildless players and hidden/unavailable guild information cannot match a guild rule. No offline guild roster is downloaded. Same-faction players remain excluded from shared KoS alerts. Individual player entries take precedence over guild rules when both match. Cooldowns are per enemy character.
+
+Fresh guild-member sightings alert online addon users with the actual enemy name and the matching guild/reason. Guild rows show the most recently seen member and the spotter's position; right-click the row to pin it. Sightings are reports, not verified remote identity or exact enemy coordinates. Removing a guild stops future guild-rule matches; existing explicit player entries continue to apply.
+
+Guild rules sync automatically with your own guild and stay separate from other guilds' lists. All participants should update to **0.5.2**: earlier versions cannot process guild rules or the new guild-tagged sightings. The optional aura listens to the same event and does not require a fresh import. Game-client detection still requires in-game verification.

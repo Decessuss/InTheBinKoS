@@ -65,3 +65,16 @@ Tests use Lua 5.1 through Lupa and simulated WoW APIs. They do not replace multi
 ### 0.5.1: first and last names
 
 Enter the full character name in the UI, or use `/kos add "First Last" Reason` and `/kos remove "First Last"`. Guild entries, named editor grants, sightings and private lists support spaces. Update every guild member to 0.5.1 for full-name syncing. Existing single-word entries remain compatible. No BattleTag override is included.
+
+
+### 0.5.2: whole-guild KoS entries
+
+Open **KoS Guilds** beside Guild List and Personal List. Officers and granted editors can enter an enemy guild's full name and reason, then Add / Save, or target an opposing-faction member and click **Target Guild**. Select a guild row to remove it. Members can view the list and report sightings automatically.
+
+Commands: `/kos addguild "Enemy Guild" Reason` and `/kos removeguild "Enemy Guild"`.
+
+Guild rules match the full guild name (case-insensitive, repeated ordinary spaces normalized). Hyphens are preserved. The addon must be able to read the enemy player's guild through the game API; guildless players and hidden/unavailable guild information cannot match a guild rule. No offline guild roster is downloaded. Same-faction players remain excluded from shared KoS alerts. Individual player entries take precedence over guild rules when both match. Cooldowns are per enemy character.
+
+Fresh guild-member sightings alert online addon users with the actual enemy name and the matching guild/reason. Guild rows show the most recently seen member and the spotter's position; right-click the row to pin it. Sightings are reports, not verified remote identity or exact enemy coordinates. Removing a guild stops future guild-rule matches; existing explicit player entries continue to apply.
+
+Guild rules sync automatically with your own guild and stay separate from other guilds' lists. All participants should update to **0.5.2**: earlier versions cannot process guild rules or the new guild-tagged sightings. The optional aura listens to the same event and does not require a fresh import. Game-client detection still requires in-game verification.

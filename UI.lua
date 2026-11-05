@@ -2,6 +2,10 @@ local api = ForeverKoS
 local window, minimap, refresh
 local page, selected, rows = 1, nil, {}
 local SIZE = 7
+local function guildMode() return api.IsGuildMode and api.IsGuildMode() and not api.IsPersonalMode() end
+local function entryName(name) return guildMode() and name or api.DisplayName(name) end
+local function sightingFor(name) return guildMode() and api.GetGuildSighting(name) or (not guildMode() and api.GetSighting(name)) end
+local function pin(name) local s=name and sightingFor(name);if s then api.PinSighting(s.name) end end
 local function label(parent, text, x, y, size)
     local f = parent:CreateFontString(nil,"OVERLAY",size or "GameFontNormal")
     f:SetPoint("TOPLEFT",x,y); f:SetText(text)
@@ -44,14 +48,16 @@ local function createWindow()
     window.status:SetWidth(515); window.status:SetJustifyH("LEFT")
     window.rank=label(window,"",300,-24,"GameFontHighlightSmall")
     window.rank:SetWidth(210); window.rank:SetJustifyH("RIGHT")
-    local function switchList(value)
+    local function switchList(value,guilds)
         if api.SetPersonalMode then api.SetPersonalMode(value) end
+        if api.SetGuildMode then api.SetGuildMode(guilds) end
         page=1;selected=nil
         window.name:SetText("");window.reason:SetText("");window.search:SetText("")
         refresh()
     end
     window.guildTab=button(window,"Guild List",20,-44,110,function() switchList(false) end)
     window.personalTab=button(window,"Personal List",135,-44,120,function() switchList(true) end)
+    window.guildsTab=button(window,"KoS Guilds",260,-44,115,function() switchList(false,true) end)
     label(window,"Search",20,-107,"GameFontNormalSmall")
     window.search=editBox(window,78,-100,255,80)
     window.search:SetScript("OnTextChanged",function() page=1; if refresh then refresh() end end)
@@ -72,17 +78,17 @@ local function createWindow()
         row:SetScript("OnClick",function(self,mouseButton)
             if not self.record then return end
             if mouseButton=="RightButton" then
-                if not (api.IsPersonalMode and api.IsPersonalMode()) and api.PinSighting then api.PinSighting(self.record.name) end
+                if not (api.IsPersonalMode and api.IsPersonalMode()) and api.PinSighting then pin(self.record.name) end
                 return
             end
             selected=self.record.name
-            window.name:SetText(api.DisplayName(self.record.name)); window.reason:SetText(self.record.reason)
+            window.name:SetText(entryName(self.record.name)); window.reason:SetText(self.record.reason)
             refresh()
         end)
         row:SetScript("OnEnter",function(self)
             if not self.record then return end
             GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
-            GameTooltip:SetText(api.DisplayName(self.record.name))
+            GameTooltip:SetText(entryName(self.record.name))
             GameTooltip:AddLine(self.record.reason,1,1,1,true)
             GameTooltip:AddLine("Edited by " .. api.DisplayName(self.record.editor),0.7,0.7,0.7,true)
             local s=self.record.sighting
@@ -107,7 +113,7 @@ local function createWindow()
     window.reason=editBox(window,281,-503,250,60)
     window.add=button(window,"Add / Save",20,-536,100,function()
         local name=window.name:GetText()
-        if selected and name==api.DisplayName(selected) then name=selected end
+        if selected and name==entryName(selected) then name=selected end
         api.Edit(name,window.reason:GetText(),false); refresh()
     end)
     window.target=button(window,"Add Target",125,-536,100,function()
@@ -119,7 +125,7 @@ local function createWindow()
     end)
     window.test=button(window,"Test Alert",325,-536,100,function() api.Test() end)
     window.sync=button(window,"Sync",430,-536,105,function() api.Sync() end)
-    window.pin=button(window,"Pin Last Seen",420,-573,115,function() if selected then api.PinSighting(selected) end end)
+    window.pin=button(window,"Pin Last Seen",420,-573,115,function() if selected then pin(selected) end end)
     window.sound=CreateFrame("CheckButton",nil,window,"UICheckButtonTemplate")
     window.sound:SetPoint("TOPLEFT",18,-573); window.sound:SetSize(26,26)
     window.soundLabel=label(window,"Sound",48,-580,"GameFontHighlightSmall")
@@ -136,7 +142,11 @@ local function createWindow()
     refresh=function()
         local entries, canEdit, scope, sound, alerts=api.GetState()
         local private=api.IsPersonalMode and api.IsPersonalMode()
-        window.guildTab:SetEnabled(private and true or false)
+        local guilds=guildMode()
+        window.guildTab:SetEnabled(private or guilds)
+        window.guildsTab:SetEnabled(not guilds)
+        window.nameLabel:SetText(guilds and "Enemy guild name" or "Player name")
+        window.target:SetText(guilds and "Target Guild" or "Add Target")
         window.personalTab:SetEnabled(not private)
         local total=#entries
         local query=string.lower(window.search:GetText() or "")
@@ -160,7 +170,7 @@ local function createWindow()
         window.sort:SetText(api.Settings().sortRecent and "Sort: Last Seen" or "Sort: Name")
         local pages=math.max(1,math.ceil(#entries/SIZE))
         page=math.max(1,math.min(page,pages))
-        window.status:SetText((private and "PERSONAL — private, never shared" or (canEdit and "Editing enabled" or "View only — members can report sightings")) .. "  |  " .. #entries .. " / " .. total .. " players")
+        window.status:SetText((private and "PERSONAL — private, never shared" or (canEdit and "Editing enabled" or "View only — members can report sightings")) .. "  |  " .. #entries .. " / " .. total .. (guilds and " guilds" or " players"))
         window.rank:SetText(api.GetRankLabel and api.GetRankLabel() or "Rank: Loading...")
         local exists=false
         for _, r in ipairs(entries) do if r.name==selected then exists=true end end
@@ -168,15 +178,15 @@ local function createWindow()
         for i,row in ipairs(rows) do
             local r=entries[(page-1)*SIZE+i]; row.record=r
             if r then
-                row.name:SetText((r.name==selected and "> " or "") .. api.DisplayName(r.name))
+                row.name:SetText((r.name==selected and "> " or "") .. (guilds and ("<" .. r.name .. ">") or api.DisplayName(r.name)))
                 row.reason:SetText(r.reason~="" and r.reason or "No reason supplied")
                 local s=r.sighting
-                row.seen:SetText(private and "Private reminder — not shared with your guild" or (s and (api.SightingZone(s) .. " — " .. api.SightingAge(s) .. " — " .. api.DisplayName(s.spotter)) or "Not seen yet"))
+                row.seen:SetText(private and "Private reminder — not shared with your guild" or (s and (api.SightingZone(s) .. " — " .. api.SightingAge(s) .. " — " .. api.DisplayName(s.spotter) .. (guilds and (" — " .. api.DisplayName(s.name)) or "")) or "Not seen yet"))
                 row:Show()
             else row:Hide() end
         end
         window.empty:SetShown(#entries==0)
-        window.empty:SetText(total==0 and (private and "Your private avoid list is empty. Add a target or enter a name below." or "Your KoS list is empty. Add a target or enter a player below.") or "No matching players. Try a different search.")
+        window.empty:SetText(total==0 and (private and "Your private avoid list is empty. Add a target or enter a name below." or (guilds and "No enemy guilds listed. Enter a guild or use Target Guild below." or "Your KoS list is empty. Add a target or enter a player below.")) or "No matching players. Try a different search.")
         window.page:SetText("Page " .. page .. " / " .. pages)
         window.prev:SetEnabled(page>1); window.next:SetEnabled(page<pages)
         window.add:SetEnabled(canEdit); window.target:SetEnabled(canEdit)
@@ -198,7 +208,7 @@ local function createWindow()
         window.alerts:ClearAllPoints(); window.alerts:SetPoint("TOPLEFT",125,checkboxY)
         window.soundLabel:ClearAllPoints(); window.soundLabel:SetPoint("TOPLEFT",48,checkboxY-7)
         window.alertsLabel:ClearAllPoints(); window.alertsLabel:SetPoint("TOPLEFT",155,checkboxY-7)
-        local sighting=selected and api.GetSighting and api.GetSighting(selected)
+        local sighting=selected and sightingFor(selected)
         window.pin:SetEnabled(sighting~=nil and sighting.map~=0)
         window.sound:SetChecked(sound); window.alerts:SetChecked(alerts)
     end
