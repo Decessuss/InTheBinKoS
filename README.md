@@ -102,3 +102,10 @@ Shared KoS sightings and Test Alert now use the classic Counter-Strike 1.6 "Enem
 ### 0.5.5: corrected alert recording
 
 Replaced the previous radio clip with the exact Enemy spotted MP3 supplied by the addon author. Sound controls and fallback behavior are unchanged.
+
+
+### 0.5.6: officer Addon Users view
+
+Officers can open **Addon Users** to see online guild members, their reported addon version, and their current access (Officer, Granted editor or Member). Click a row to fill the character name below, then use **Grant Access** or **Revoke Access**. These are the existing officer-only named editor grants; delegated editors cannot grant permissions. Revoking a named grant does not remove access supplied by the actual guild rank.
+
+**Refresh Users** requests reports with a 30-second cooldown. Version 0.5.6+ announces on login/guild changes, responds to requests and reports every five minutes. Only online members in the loaded guild roster appear; reports expire after eleven minutes and reset on guild changes. Presence is session-only and is not proof of installation or identity. **No addon response yet** can mean an older version, disabled addon, lost/delayed reply, or no installation; it is not a definitive negative. All guild members should update for version detection. Presence messages never grant access or change the KoS list. Normal members and named editors do not see this tab.

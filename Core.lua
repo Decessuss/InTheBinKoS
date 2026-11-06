@@ -180,6 +180,7 @@ local function receive(prefix, message, channel, sender)
     if channel ~= "GUILD" and channel ~= "WHISPER" then return end
     local senderKey = key(sender)
     if not senderKey or roster[senderKey] == nil or senderKey == key(me) then return end
+    if ForeverKoS.ReceivePresence and ForeverKoS.ReceivePresence(message,sender,channel) then return end
     if ForeverKoS.ReceiveGuildTarget and ForeverKoS.ReceiveGuildTarget(message,sender,channel,permitted(sender),GetTime()-lastRequest<=1200) then return end
     if message:sub(1,2)=="G\t" then
         if not isOfficer(sender) then return end
@@ -334,6 +335,11 @@ function ForeverKoS.MatchRecord(name)
 end
 function ForeverKoS.MatchReason(r) return r.reason end
 function ForeverKoS.CanEditShared() return db~=nil and permitted(me) end
+function ForeverKoS.SharedAccessLabel(name)
+    if isOfficer(name) then return "Officer" end
+    return permitted(name) and "Granted editor" or "Member"
+end
+function ForeverKoS.QueuePresence(message) if db then enqueue(message) end end
 function ForeverKoS.QueueGuildTarget(message,target) enqueue(message,target and "WHISPER" or "GUILD",target) end
 function ForeverKoS.SightingContext() return db, me end
 function ForeverKoS.NameKey(name) return key(name) end
@@ -396,6 +402,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
         rebuild()
         if event ~= "GUILD_ROSTER_UPDATE" and C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
         request()
+        if ForeverKoS.PresenceChanged then ForeverKoS.PresenceChanged() end
     elseif event == "CHAT_MSG_ADDON" then receive(...)
     elseif event == "NAME_PLATE_UNIT_ADDED" then guardedCheck(...)
     elseif event == "PLAYER_TARGET_CHANGED" then guardedCheck("target")
@@ -403,6 +410,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
 end)
 frame:SetScript("OnUpdate", function(_, delta)
     elapsed, refresh = elapsed + delta, refresh + delta
+    if ForeverKoS.PresenceTick then ForeverKoS.PresenceTick(delta) end
     if elapsed >= 0.2 then
         elapsed = 0
         -- Mouseover identity can become readable after the initial event. Retry
@@ -412,7 +420,7 @@ frame:SetScript("OnUpdate", function(_, delta)
         if item and db and C_ChatInfo then
             -- Recheck permissions at send time in case an officer was demoted.
             local cacheReply=item[2]=="WHISPER" and (item[1]:sub(1,2)=="C\t" or item[1]:sub(1,2)=="H\t" or item[1]:sub(1,2)=="U\t")
-            if item[1] == "Q" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
+            if item[1] == "Q" or item[1]=="P" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
         end
     end
     if refresh >= 300 then

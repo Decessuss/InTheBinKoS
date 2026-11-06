@@ -212,3 +212,10 @@ Guild rules match the full guild name (case-insensitive, repeated ordinary space
 Fresh guild-member sightings alert online addon users with the actual enemy name and the matching guild/reason. Guild rows show the most recently seen member and the spotter's position; right-click the row to pin it. Sightings are reports, not verified remote identity or exact enemy coordinates. Removing a guild stops future guild-rule matches; existing explicit player entries continue to apply.
 
 Guild rules sync automatically with your own guild and stay separate from other guilds' lists. All participants should update to **0.5.2**: earlier versions cannot process guild rules or the new guild-tagged sightings. The optional aura listens to the same event and does not require a fresh import. Game-client detection still requires in-game verification.
+
+
+### 0.5.6: officer Addon Users view
+
+Officers can open **Addon Users** to see online guild members, their reported addon version, and their current access (Officer, Granted editor or Member). Click a row to fill the character name below, then use **Grant Access** or **Revoke Access**. These are the existing officer-only named editor grants; delegated editors cannot grant permissions. Revoking a named grant does not remove access supplied by the actual guild rank.
+
+**Refresh Users** requests reports with a 30-second cooldown. Version 0.5.6+ announces on login/guild changes, responds to requests and reports every five minutes. Only online members in the loaded guild roster appear; reports expire after eleven minutes and reset on guild changes. Presence is session-only and is not proof of installation or identity. **No addon response yet** can mean an older version, disabled addon, lost/delayed reply, or no installation; it is not a definitive negative. All guild members should update for version detection. Presence messages never grant access or change the KoS list. Normal members and named editors do not see this tab.

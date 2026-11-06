@@ -2,6 +2,7 @@ local api = ForeverKoS
 local window, minimap, refresh
 local page, selected, rows = 1, nil, {}
 local SIZE = 7
+local function usersMode() return api.IsUsersMode and api.IsUsersMode() end
 local function guildMode() return api.IsGuildMode and api.IsGuildMode() and not api.IsPersonalMode() end
 local function entryName(name) return guildMode() and name or api.DisplayName(name) end
 local function sightingFor(name) return guildMode() and api.GetGuildSighting(name) or (not guildMode() and api.GetSighting(name)) end
@@ -48,9 +49,10 @@ local function createWindow()
     window.status:SetWidth(515); window.status:SetJustifyH("LEFT")
     window.rank=label(window,"",300,-24,"GameFontHighlightSmall")
     window.rank:SetWidth(210); window.rank:SetJustifyH("RIGHT")
-    local function switchList(value,guilds)
+    local function switchList(value,guilds,users)
         if api.SetPersonalMode then api.SetPersonalMode(value) end
         if api.SetGuildMode then api.SetGuildMode(guilds) end
+        if api.SetUsersMode then api.SetUsersMode(users) end
         page=1;selected=nil
         window.name:SetText("");window.reason:SetText("");window.search:SetText("")
         refresh()
@@ -58,6 +60,7 @@ local function createWindow()
     window.guildTab=button(window,"Guild List",20,-44,110,function() switchList(false) end)
     window.personalTab=button(window,"Personal List",135,-44,120,function() switchList(true) end)
     window.guildsTab=button(window,"KoS Guilds",260,-44,115,function() switchList(false,true) end)
+    window.usersTab=button(window,"Addon Users",380,-44,155,function() switchList(false,false,true) end)
     label(window,"Search",20,-107,"GameFontNormalSmall")
     window.search=editBox(window,78,-100,255,80)
     window.search:SetScript("OnTextChanged",function() page=1; if refresh then refresh() end end)
@@ -77,6 +80,11 @@ local function createWindow()
         row.seen:SetWidth(495); row.seen:SetJustifyH("LEFT")
         row:SetScript("OnClick",function(self,mouseButton)
             if not self.record then return end
+            if usersMode() then
+                selected=self.record.name
+                window.accessName:SetText(self.record.name)
+                refresh();return
+            end
             if mouseButton=="RightButton" then
                 if not (api.IsPersonalMode and api.IsPersonalMode()) and api.PinSighting then pin(self.record.name) end
                 return
@@ -90,6 +98,10 @@ local function createWindow()
             GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
             GameTooltip:SetText(entryName(self.record.name))
             GameTooltip:AddLine(self.record.reason,1,1,1,true)
+            if usersMode() then
+                GameTooltip:AddLine("Select to fill the access controls below.",0.8,0.8,0.8,true)
+                GameTooltip:Show();return
+            end
             GameTooltip:AddLine("Edited by " .. api.DisplayName(self.record.editor),0.7,0.7,0.7,true)
             local s=self.record.sighting
             if s and api.SightingZone then
@@ -125,6 +137,7 @@ local function createWindow()
     end)
     window.test=button(window,"Test Alert",325,-536,100,function() api.Test() end)
     window.sync=button(window,"Sync",430,-536,105,function() api.Sync() end)
+    window.scan=button(window,"Refresh Users",380,-484,155,function() api.RequestAddonUsers(); refresh() end)
     window.pin=button(window,"Pin Last Seen",420,-573,115,function() if selected then pin(selected) end end)
     window.sound=CreateFrame("CheckButton",nil,window,"UICheckButtonTemplate")
     window.sound:SetPoint("TOPLEFT",18,-573); window.sound:SetSize(26,26)
@@ -143,7 +156,10 @@ local function createWindow()
         local entries, canEdit, scope, sound, alerts=api.GetState()
         local private=api.IsPersonalMode and api.IsPersonalMode()
         local guilds=guildMode()
-        window.guildTab:SetEnabled(private or guilds)
+        local users=usersMode()
+        window.usersTab:SetShown(api.CanManageAccess and api.CanManageAccess())
+        window.usersTab:SetEnabled(not users)
+        window.guildTab:SetEnabled(private or guilds or users)
         window.guildsTab:SetEnabled(not guilds)
         window.nameLabel:SetText(guilds and "Enemy guild name" or "Player name")
         window.target:SetText(guilds and "Target Guild" or "Add Target")
@@ -171,6 +187,7 @@ local function createWindow()
         local pages=math.max(1,math.ceil(#entries/SIZE))
         page=math.max(1,math.min(page,pages))
         window.status:SetText((private and "PERSONAL — private, never shared" or (canEdit and "Editing enabled" or "View only — members can report sightings")) .. "  |  " .. #entries .. " / " .. total .. (guilds and " guilds" or " players"))
+        if users then window.status:SetText("Online guild members — select a player to grant/revoke editing") end
         window.rank:SetText(api.GetRankLabel and api.GetRankLabel() or "Rank: Loading...")
         local exists=false
         for _, r in ipairs(entries) do if r.name==selected then exists=true end end
@@ -182,22 +199,28 @@ local function createWindow()
                 row.reason:SetText(r.reason~="" and r.reason or "No reason supplied")
                 local s=r.sighting
                 row.seen:SetText(private and "Private reminder — not shared with your guild" or (s and (api.SightingZone(s) .. " — " .. api.SightingAge(s) .. " — " .. api.DisplayName(s.spotter) .. (guilds and (" — " .. api.DisplayName(s.name)) or "")) or "Not seen yet"))
+                if users then
+                    row.seen:SetText(r.detected and "Reporting addon presence — select for access controls" or "Unknown: offline addon, old version, disabled, or awaiting reply")
+                end
                 row:Show()
             else row:Hide() end
         end
         window.empty:SetShown(#entries==0)
         window.empty:SetText(total==0 and (private and "Your private avoid list is empty. Add a target or enter a name below." or (guilds and "No enemy guilds listed. Enter a guild or use Target Guild below." or "Your KoS list is empty. Add a target or enter a player below.")) or "No matching players. Try a different search.")
+        if users then window.empty:SetText("No online guild roster available yet. Open the guild roster and try again.") end
         window.page:SetText("Page " .. page .. " / " .. pages)
         window.prev:SetEnabled(page>1); window.next:SetEnabled(page<pages)
         window.add:SetEnabled(canEdit); window.target:SetEnabled(canEdit)
         window.remove:SetEnabled(canEdit and selected~=nil)
         for _,control in ipairs({window.nameLabel,window.reasonLabel,window.name,window.reason,
                 window.add,window.target,window.remove,window.test,window.sync,window.pin,window.footer}) do
-            control:SetShown(canEdit)
+            control:SetShown(canEdit and not users)
         end
         if private then window.sync:Hide();window.pin:Hide() end
+        window.scan:SetShown(users)
         window.alertsLabel:SetText(private and "Personal reminders" or "Sighting alerts")
         window.footer:SetText(private and "Private avoid list • Same-faction sightings and party/raid reminders" or "Last seen = spotter position, not live enemy tracking • Esc to close")
+        if users then window.footer:SetText("No response does not prove absence • Presence is not an access grant") end
         local canManage=api.CanManageAccess and api.CanManageAccess()
         for _,control in ipairs({window.accessLabel,window.accessName,window.grant,window.revoke}) do control:SetShown(canManage and true or false) end
         window.footer:ClearAllPoints(); window.footer:SetPoint("TOPLEFT",20,canManage and -680 or -614)
