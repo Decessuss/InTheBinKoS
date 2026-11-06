@@ -93,14 +93,18 @@ function api.Edit(name,reason,deleted)
     if mode then return api.EditGuildTarget(name,reason,deleted) end
     return edit(name,reason,deleted)
 end
-function api.AddTarget(reason)
-    if not mode then return target(reason) end
+function api.GetTargetGuildName()
     if not UnitIsPlayer("target") then say("Target an enemy guild member first.");return end
     local faction,own=UnitFactionGroup("target"),UnitFactionGroup("player")
     if not faction or not own or faction==own then say("Target a player from the opposing faction.");return end
     local name=GetGuildInfo("target")
     if not name then say("Target guild unavailable. Enter its full name manually.");return end
-    return api.EditGuildTarget(name,reason,false)
+    return normalize(name)
+end
+function api.AddTarget(reason)
+    if not mode then return target(reason) end
+    local name=api.GetTargetGuildName()
+    if name then return api.EditGuildTarget(name,reason,false) end
 end
 local slash=SlashCmdList.FOREVERKOS
 SlashCmdList.FOREVERKOS=function(input)

@@ -132,3 +132,8 @@ Grant confirmation is an automatic reply from the recipient addon, not a popup. 
 Fixes character identity when WoWForever returns first name and surname separately from UnitFullName. Full names now match guild roster entries so existing named access grants apply correctly. The same name handling is used for sightings and personal lists. Confirmed in-game with an existing grant to Decessuss Reaper.
 
 Adds member-accessible /kos accessdebug to inspect roster identity and trace incoming grants. Diagnostics are off by default; use /kos accessdebug off to stop them. No confirmation popup is required.
+
+
+### 0.5.11: Add a targeted player's guild
+
+Open KoS Guilds, target an opposing-faction player, and click Target's Guild. This fills the guild name without saving immediately. Enter an optional reason and click Add / Save to confirm. Officers and granted editors can save; the entry syncs through the existing guild KoS system. Guildless, unavailable, non-player and same-faction targets show a message instead.

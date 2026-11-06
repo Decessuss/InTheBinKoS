@@ -79,7 +79,26 @@ a.execute('''
 ForeverKoS.ToggleUI();assert(ForeverKoSWindow:IsShown())
 for _,f in ipairs(frames) do if f.text=="KoS Guilds" then f.scripts.OnClick() end end
 assert(ForeverKoS.IsGuildMode())
+units.target={name="Target Person",faction="Horde",guild="Target-Guild People"}
+ForeverKoSWindow.reason:SetText("Target test")
+ForeverKoSWindow.target.scripts.OnClick()
+assert(ForeverKoSWindow.name:GetText()=="Target-Guild People")
+assert(not ForeverKoS.MatchRecord("Target Person","Target-Guild People"))
+ForeverKoSWindow.add.scripts.OnClick()
+assert(ForeverKoS.MatchRecord("Target Person","Target-Guild People").reason=="Target test")
+units.target.guild=nil
+assert(ForeverKoS.GetTargetGuildName()==nil)
+units.target.guild="Friendly Guild";units.target.faction="Alliance"
+assert(ForeverKoS.GetTargetGuildName()==nil)
+units.target=nil
+assert(ForeverKoS.GetTargetGuildName()==nil)
 for _,f in ipairs(frames) do if f.text=="Personal List" then f.scripts.OnClick() end end
 assert(ForeverKoS.IsPersonalMode() and not ForeverKoS.IsGuildMode())
 ''')
+base['deliver'](a,m,'Alice')
+# Restore the member's original guild after the isolation test above.
+m.execute('guildName="Guild";testFrame.OnEvent(testFrame,"PLAYER_GUILD_UPDATE")')
+base['packet'](a,'Q','Member')
+base['deliver'](a,m,'Alice')
+assert m.globals().ForeverKoS.MatchRecord('Target Person','Target-Guild People').reason=='Target test'
 print('PASS: guild rules, permissions, matching, fresh alerts, member cache, tombstones, faction/guild isolation and three-tab UI.')

@@ -129,6 +129,13 @@ local function createWindow()
         api.Edit(name,window.reason:GetText(),false); refresh()
     end)
     window.target=button(window,"Add Target",125,-536,100,function()
+        if guildMode() then
+            local name=api.GetTargetGuildName()
+            if name then
+                selected=nil;window.name:SetText(name);window.reason:SetFocus()
+            end
+            return
+        end
         api.AddTarget(window.reason:GetText()); refresh()
     end)
     window.remove=button(window,"Remove",230,-536,90,function()
@@ -164,7 +171,7 @@ local function createWindow()
         window.guildTab:SetEnabled(private or guilds or users)
         window.guildsTab:SetEnabled(not guilds)
         window.nameLabel:SetText(guilds and "Enemy guild name" or "Player name")
-        window.target:SetText(guilds and "Target Guild" or "Add Target")
+        window.target:SetText(guilds and "Target's Guild" or "Add Target")
         window.personalTab:SetEnabled(not private)
         local total=#entries
         local query=string.lower(window.search:GetText() or "")
@@ -209,7 +216,7 @@ local function createWindow()
             else row:Hide() end
         end
         window.empty:SetShown(#entries==0)
-        window.empty:SetText(total==0 and (private and "Your private avoid list is empty. Add a target or enter a name below." or (guilds and "No enemy guilds listed. Enter a guild or use Target Guild below." or "Your KoS list is empty. Add a target or enter a player below.")) or "No matching players. Try a different search.")
+        window.empty:SetText(total==0 and (private and "Your private avoid list is empty. Add a target or enter a name below." or (guilds and "Use Target's Guild to fill a name, then Add / Save to confirm." or "Your KoS list is empty. Add a target or enter a player below.")) or "No matching players. Try a different search.")
         if users then window.empty:SetText("No matching users. Try Refresh Users or switch Show: KoS Editors.") end
         window.page:SetText("Page " .. page .. " / " .. pages)
         window.prev:SetEnabled(page>1); window.next:SetEnabled(page<pages)
