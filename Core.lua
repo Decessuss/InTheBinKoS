@@ -3,6 +3,7 @@ local PREFIX = "ForeverKoS1"
 local frame = CreateFrame("Frame")
 local guild, db, me
 local roster, queue, requests, seen = {}, {}, {}, {}
+local rosterGUIDs={}
 local announced={}
 local debugEnabled=false
 local debugSeen={}
@@ -46,14 +47,42 @@ local function unitName(unit)
     if not n then return nil end
     return full(n .. "-" .. ((r and r ~= "") and r:gsub("%s", "") or realm()))
 end
+local function nativeOfficer()
+    local query=C_GuildInfo and C_GuildInfo.IsGuildOfficer or IsGuildOfficer
+    if type(query)~="function" then return nil end
+    local ok,value=pcall(query)
+    if ok and type(value)=="boolean" then return value end
+end
+local function rankOrder(name)
+    local k=key(name)
+    local guid=k and rosterGUIDs[k]
+    if k and k==key(me) and UnitGUID then guid=UnitGUID("player") or guid end
+    if guid and C_GuildInfo and C_GuildInfo.GetGuildRankOrder then
+        local ok,value=pcall(C_GuildInfo.GetGuildRankOrder,guid)
+        if ok and type(value)=="number" and value>=1 then return value end
+    end
+    local rank=k and roster[k]
+    if rank==nil and k and k==key(me) then
+        local _,_,ownRank=GetGuildInfo("player")
+        rank=ownRank
+    end
+    return type(rank)=="number" and rank+1 or nil
+end
+local function rankFlags(order)
+    if not order or not (C_GuildInfo and C_GuildInfo.GuildControlGetRankFlags) then return nil end
+    local ok,flags=pcall(C_GuildInfo.GuildControlGetRankFlags,order)
+    return ok and type(flags)=="table" and flags or nil
+end
 local function isOfficer(name)
-    local rank = roster[key(name)]
-    if rank == nil then return false end
-    if rank == 0 then return true end
-    -- Read-only API: never select or change a guild rank to inspect permissions.
-    if not (C_GuildInfo and C_GuildInfo.GuildControlGetRankFlags) then return false end
-    local ok, flags = pcall(C_GuildInfo.GuildControlGetRankFlags, rank + 1)
-    return ok and type(flags) == "table" and flags[4] == true
+    local k=key(name)
+    if not k then return false end
+    -- The server's own-player check does not depend on the guild roster cache.
+    -- Never use it to authorize another character or a claimed addon message.
+    if k==key(me) and GetGuildInfo("player") and nativeOfficer()==true then return true end
+    local order=rankOrder(name)
+    if order==1 then return true end
+    local flags=rankFlags(order)
+    return flags~=nil and flags[4]==true
 end
 local function permitted(name)
     if isOfficer(name) then return true end
@@ -75,11 +104,12 @@ local function rebuild()
             db = ForeverKoSDB.guilds[scope]
         end
     end
-    roster = {}
+    roster,rosterGUIDs = {},{}
     if not g then return end
     for i=1, GetNumGuildMembers() do
-        local n, _, rank = GetGuildRosterInfo(i)
-        if n then roster[key(n)] = rank end
+        local n, _, rank, _, _, _, _, _, _, _, _, _, _, _, _, _, guid = GetGuildRosterInfo(i)
+        local k=key(n)
+        if k then roster[k]=rank;rosterGUIDs[k]=guid end
     end
 end
 local function encode(s) return (s:gsub("([^%w%-%. ])", function(c) return string.format("%%%02X", string.byte(c)) end)) end
@@ -341,7 +371,9 @@ SlashCmdList.FOREVERKOS = function(input)
         for _, n in ipairs(names) do say(clean(n)) end
     elseif command == "status" then
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
-        if not (C_GuildInfo and C_GuildInfo.GuildControlGetRankFlags) then say("This client lacks the rank-permission API; non-GM edits/sync are disabled pending compatibility work.") end
+        local order=rankOrder(me);local flags=rankFlags(order)
+        say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])
+            .. "; rank order=" .. tostring(order) .. "; officer-chat speak=" .. tostring(flags and flags[4]))
     else
         say("/kos add [Name-Realm|target] [reason] (quote names with spaces); /kos remove [Name-Realm|target]; /kos list; /kos sync; /kos publish; /kos test; /kos status; /kos sound on|off; /kos alerts on|off")
     end
@@ -352,7 +384,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
         ForeverKoSDB = ForeverKoSDB or {guilds={}}
         ForeverKoSDB.guilds = ForeverKoSDB.guilds or {}
         if C_ChatInfo then C_ChatInfo.RegisterAddonMessagePrefix(PREFIX) end
-    elseif event == "PLAYER_LOGIN" or event == "PLAYER_GUILD_UPDATE" or event == "GUILD_ROSTER_UPDATE" then
+    elseif event == "PLAYER_LOGIN" or event == "PLAYER_GUILD_UPDATE" or event == "GUILD_ROSTER_UPDATE" or event == "GUILD_RANKS_UPDATE" then
         rebuild()
         if event ~= "GUILD_ROSTER_UPDATE" and C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
         request()
@@ -381,4 +413,4 @@ frame:SetScript("OnUpdate", function(_, delta)
         request()
     end
 end)
-for _, e in ipairs({"ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_GUILD_UPDATE", "GUILD_ROSTER_UPDATE", "CHAT_MSG_ADDON", "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT"}) do frame:RegisterEvent(e) end
+for _, e in ipairs({"ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_GUILD_UPDATE", "GUILD_ROSTER_UPDATE", "GUILD_RANKS_UPDATE", "CHAT_MSG_ADDON", "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT"}) do frame:RegisterEvent(e) end

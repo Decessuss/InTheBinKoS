@@ -87,3 +87,8 @@ Version tags (`v*`) validate the addon, publish the GitHub ZIP and submit the sa
 One-time setup: create a CurseForge **author upload token** and store it in GitHub repository Settings → Secrets and variables → Actions as **CF_API_TOKEN**. Never commit the token. Run the release workflow manually with **check_curseforge** enabled to verify the token and version lookup without uploading a duplicate file. A missing/invalid secret fails clearly. This does not bypass CurseForge moderation.
 
 Before retrying an upload job after a connection error, check CurseForge Files first: the server might have accepted it before the timeout. Do not rerun successful upload jobs, as CurseForge can create duplicate files. Version 0.5.2 was already uploaded manually and should not be submitted again.
+
+
+### 0.5.3: officer access compatibility
+
+Own-player officer detection now also uses the game's native officer query, without waiting for the roster cache. Rank permission lookup prefers GUID-based rank order where available, falls back to the existing rank-index lookup, and refreshes on guild-rank changes. A player's native officer result is never used to authorize another sender. Missing/unreadable permission data does not grant remote access. `/kos status` includes native officer, cached rank, resolved rank order and officer-chat speak diagnostics. All guild members should update so sender validation uses the new lookup. The reported in-game issue still needs confirmation from the affected officer after updating.
