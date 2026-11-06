@@ -214,8 +214,8 @@ Fresh guild-member sightings alert online addon users with the actual enemy name
 Guild rules sync automatically with your own guild and stay separate from other guilds' lists. All participants should update to **0.5.2**: earlier versions cannot process guild rules or the new guild-tagged sightings. The optional aura listens to the same event and does not require a fresh import. Game-client detection still requires in-game verification.
 
 
-### 0.5.6: officer Addon Users view
+### 0.5.7: officer Addon Users view
 
-Officers can open **Addon Users** to see online guild members, their reported addon version, and their current access (Officer, Granted editor or Member). Click a row to fill the character name below, then use **Grant Access** or **Revoke Access**. These are the existing officer-only named editor grants; delegated editors cannot grant permissions. Revoking a named grant does not remove access supplied by the actual guild rank.
+Officers can open **Addon Users** to see detected online guild members with the addon, their version and current editing access. Select a player, then click **Grant Access** or **Revoke Access**. Grants remain officer-only; delegated editors cannot grant access. Revoking a named grant does not remove rank-based permissions.
 
-**Refresh Users** requests reports with a 30-second cooldown. Version 0.5.6+ announces on login/guild changes, responds to requests and reports every five minutes. Only online members in the loaded guild roster appear; reports expire after eleven minutes and reset on guild changes. Presence is session-only and is not proof of installation or identity. **No addon response yet** can mean an older version, disabled addon, lost/delayed reply, or no installation; it is not a definitive negative. All guild members should update for version detection. Presence messages never grant access or change the KoS list. Normal members and named editors do not see this tab.
+Detection runs automatically in the background. Nobody needs to type commands or submit reports. **Refresh Users** refreshes detection (30-second cooldown). Version 0.5.6+ supports this detection. Offline, outdated and non-responding clients are omitted; absence from this list does not prove the addon is not installed. The view is officer-only, session-only and resets on guild changes. Detection never grants access by itself.

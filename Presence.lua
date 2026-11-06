@@ -9,8 +9,8 @@ local function context()
 end
 local function version()
     local query=C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
-    local value=query and query("InTheBinKoS","Version") or "0.5.6"
-    return type(value)=="string" and value:match("^%d+%.%d+%.%d+[%w%.%-]*$") and value or "0.5.6"
+    local value=query and query("InTheBinKoS","Version") or "0.5.7"
+    return type(value)=="string" and value:match("^%d+%.%d+%.%d+[%w%.%-]*$") and value or "0.5.7"
 end
 local function announce()
     local db,me=context();if not db or not me or GetTime()-lastAnnounce<30 then return end
@@ -51,9 +51,9 @@ function api.GetAddonUsers()
             local info=users[api.NameKey(name)]
             if api.NameKey(name)==api.NameKey(me) then info={version=version(),stamp=GetTime()} end
             local detected=info and GetTime()-info.stamp<=660
-            rows[#rows+1]={name=name,editor=name,version=detected and info.version or nil,
-                reason=detected and ("Addon " .. info.version .. " — " .. api.SharedAccessLabel(name)) or "No addon response yet",
-                presence=true,rank=rank,detected=not not detected}
+            if detected then rows[#rows+1]={name=name,editor=name,version=info.version,
+                reason="Addon " .. info.version .. " — " .. api.SharedAccessLabel(name),
+                presence=true,rank=rank,detected=true} end
         end
     end
     table.sort(rows,function(a,b)

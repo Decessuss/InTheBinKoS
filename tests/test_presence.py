@@ -25,13 +25,13 @@ m.execute('now=140')
 a.execute('now=140')
 base['packet'](m,'P','Alice-Realm')
 reply=base['sent'](m)
-assert any(msg=='V\t0.5.6' for _,msg,_,_ in reply)
+assert any(msg=='V\t0.5.7' for _,msg,_,_ in reply)
 for _,msg,ch,_ in reply:base['packet'](a,msg,'Member-Realm',ch)
 rows=a.globals().ForeverKoS.GetAddonUsers()
 member=next(row for row in rows.values() if row.name=='Member-Realm')
-listener=next(row for row in rows.values() if row.name=='Listener-Realm')
-assert member.version=='0.5.6' and member.detected and 'Member' in member.reason
-assert not listener.detected and listener.version is None
+assert not any(row.name=='Listener-Realm' for row in rows.values())
+assert member.version=='0.5.7' and member.detected and 'Member' in member.reason
+
 assert len(m.globals().ForeverKoS.GetAddonUsers())==0
 m.globals().ForeverKoS.SetUsersMode(True)
 assert not m.globals().ForeverKoS.IsUsersMode()
@@ -41,7 +41,7 @@ base['packet'](m,'V\t0.5.6','Listener-Realm')
 assert not m.globals().ForeverKoS.GetState()[1]
 base['packet'](a,'V\t9.9.9','Outsider-Realm')
 base['packet'](a,'V\tbad\tforged','Listener-Realm')
-assert not next(row for row in a.globals().ForeverKoS.GetAddonUsers().values() if row.name=='Listener-Realm').detected
+assert not any(row.name=='Listener-Realm' for row in a.globals().ForeverKoS.GetAddonUsers().values())
 # Existing officer controls applied to a discovered user synchronize normally.
 a.globals().ForeverKoS.SetEditor(member.name,True)
 base['deliver'](a,m,'Alice-Realm')
@@ -52,7 +52,7 @@ base['deliver'](a,m,'Alice-Realm')
 assert not m.globals().ForeverKoS.GetState()[1]
 # Session reports expire and disappear when the roster marks the member offline.
 a.execute('now=900')
-assert not next(row for row in a.globals().ForeverKoS.GetAddonUsers().values() if row.name=='Member-Realm').detected
+assert not any(row.name=='Member-Realm' for row in a.globals().ForeverKoS.GetAddonUsers().values())
 a.execute('''
 local old=GetGuildRosterInfo
 GetGuildRosterInfo=function(i) local n,r,k=old(i);return n,r,k,nil,nil,nil,nil,nil,n~="Member-Realm" end
@@ -69,6 +69,7 @@ print('PASS: version discovery, member replies, officer-only view, unknown/offli
 u=ns['a']
 u.execute("ForeverKoS.SetPersonalMode(false);ForeverKoS.SetGuildMode(false)")
 u.execute(Path('Presence.lua').read_text(encoding='utf-8'))
+u.execute('ForeverKoS.ReceivePresence("V\\t0.5.7","Member-Realm","GUILD")')
 u.execute(''' 
 local old=GetGuildRosterInfo
 GetGuildRosterInfo=function(i)local n,r,k=old(i);return n,r,k,nil,nil,nil,nil,nil,true end

@@ -187,7 +187,7 @@ local function createWindow()
         local pages=math.max(1,math.ceil(#entries/SIZE))
         page=math.max(1,math.min(page,pages))
         window.status:SetText((private and "PERSONAL — private, never shared" or (canEdit and "Editing enabled" or "View only — members can report sightings")) .. "  |  " .. #entries .. " / " .. total .. (guilds and " guilds" or " players"))
-        if users then window.status:SetText("Online guild members — select a player to grant/revoke editing") end
+        if users then window.status:SetText("Detected addon users — select to grant/revoke editing") end
         window.rank:SetText(api.GetRankLabel and api.GetRankLabel() or "Rank: Loading...")
         local exists=false
         for _, r in ipairs(entries) do if r.name==selected then exists=true end end
@@ -200,14 +200,14 @@ local function createWindow()
                 local s=r.sighting
                 row.seen:SetText(private and "Private reminder — not shared with your guild" or (s and (api.SightingZone(s) .. " — " .. api.SightingAge(s) .. " — " .. api.DisplayName(s.spotter) .. (guilds and (" — " .. api.DisplayName(s.name)) or "")) or "Not seen yet"))
                 if users then
-                    row.seen:SetText(r.detected and "Reporting addon presence — select for access controls" or "Unknown: offline addon, old version, disabled, or awaiting reply")
+                    row.seen:SetText("Addon detected — select to grant or revoke editing")
                 end
                 row:Show()
             else row:Hide() end
         end
         window.empty:SetShown(#entries==0)
         window.empty:SetText(total==0 and (private and "Your private avoid list is empty. Add a target or enter a name below." or (guilds and "No enemy guilds listed. Enter a guild or use Target Guild below." or "Your KoS list is empty. Add a target or enter a player below.")) or "No matching players. Try a different search.")
-        if users then window.empty:SetText("No online guild roster available yet. Open the guild roster and try again.") end
+        if users then window.empty:SetText("No addon users detected yet. Try Refresh Users in a few seconds.") end
         window.page:SetText("Page " .. page .. " / " .. pages)
         window.prev:SetEnabled(page>1); window.next:SetEnabled(page<pages)
         window.add:SetEnabled(canEdit); window.target:SetEnabled(canEdit)
