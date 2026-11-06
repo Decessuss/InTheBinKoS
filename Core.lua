@@ -233,7 +233,7 @@ local function edit(name, reason, deleted)
 end
 function ForeverKoS.PlaySightingSound()
     if type(PlaySoundFile)=="function" then
-        local ok,played=pcall(PlaySoundFile,"Interface\\AddOns\\InTheBinKoS\\Media\\EnemySpotted.wav","Master")
+        local ok,played=pcall(PlaySoundFile,"Interface\\AddOns\\InTheBinKoS\\Media\\EnemySpotted.mp3","Master")
         if ok and played then return end
     end
     -- Keep alerts audible if the client cannot load the bundled clip.

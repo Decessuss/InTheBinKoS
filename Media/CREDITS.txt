@@ -1,4 +1,4 @@
-EnemySpotted.wav: Counter-Strike 1.6 radio call "Enemy spotted" (ct_enemys.wav).
-Original game audio: Valve / Counter-Strike creators.
-Source: https://gamekill.cz/cstrike/sound/radio/ct_enemys.wav
+EnemySpotted.mp3: "Enemy spotted" Counter-Strike radio audio.
+Audio supplied by the addon author as counter-strike-jingle-cs-radio-enemy-spotted.mp3.
+Original game audio belongs to Valve / the Counter-Strike creators.
 This third-party sound recording is not covered by any license applying to the addon source code.

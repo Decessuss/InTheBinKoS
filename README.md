@@ -97,3 +97,8 @@ Own-player officer detection now also uses the game's native officer query, with
 ### 0.5.4: Enemy spotted radio alert
 
 Shared KoS sightings and Test Alert now use the classic Counter-Strike 1.6 "Enemy spotted" radio clip. The Sound checkbox still mutes it. Missing/unsupported audio falls back to the previous alert tone. Personal-list reminders keep their existing sound. Audio credits are included in Media/CREDITS.txt.
+
+
+### 0.5.5: corrected alert recording
+
+Replaced the previous radio clip with the exact Enemy spotted MP3 supplied by the addon author. Sound controls and fallback behavior are unchanged.
