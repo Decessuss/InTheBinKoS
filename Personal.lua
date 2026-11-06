@@ -5,9 +5,7 @@ local seen,present={},{}
 local function say(text) print("|cffffb45bPersonal avoid list:|r " .. text) end
 local function clean(s) return tostring(s or ""):gsub("[%c|]"," ") end
 local function nameOf(unit)
-    local n=UnitFullName(unit)
-    if not n then return end
-    return api.NormalizeName(n)
+    return api.UnitCharacterName(unit)
 end
 local function data()
     ForeverKoSDB=ForeverKoSDB or {guilds={}}

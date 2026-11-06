@@ -125,3 +125,10 @@ New grants and revocations show **Waiting for recipient addon**, **Confirmed by 
 Character identity now uses the full first and last name without realm suffixes across guild rosters, grants, messages, sightings and personal lists. Existing saved records migrate automatically, retaining legacy snapshots. Characters with the same name across realms share an identity; guild lists remain separate by guild name. Alts require separate grants.
 
 Grant confirmation is an automatic reply from the recipient addon, not a popup. Both players should update to 0.5.9. Mixed-realm grant, acknowledgement and revocation tests pass; in-game verification is still required.
+
+
+### 0.5.10: WoWForever surname compatibility
+
+Fixes character identity when WoWForever returns first name and surname separately from UnitFullName. Full names now match guild roster entries so existing named access grants apply correctly. The same name handling is used for sightings and personal lists. Confirmed in-game with an existing grant to Decessuss Reaper.
+
+Adds member-accessible /kos accessdebug to inspect roster identity and trace incoming grants. Diagnostics are off by default; use /kos accessdebug off to stop them. No confirmation popup is required.

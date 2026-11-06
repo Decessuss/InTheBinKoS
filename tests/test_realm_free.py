@@ -6,6 +6,10 @@ for r,name in zip(clients,['Oven Baked','Decessuss Reaper']):
     r.execute('''
 guildName="in the bin"
 units.player.name=testCharacter
+function UnitFullName(unit)
+ local v=units[unit];if not v then return end
+ return v.name:match("^(%S+) (.+)$")
+end
 members={{"Oven Baked-CAMWOWAU1Realm2PvP",1},{"Decessuss Reaper-Another Realm",4}}
 testFrame.OnEvent(testFrame,"GUILD_ROSTER_UPDATE")
 ''')

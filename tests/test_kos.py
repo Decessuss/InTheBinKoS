@@ -12,7 +12,7 @@ function CreateFrame() local f={}; function f:SetScript(k,v) self[k]=v end; func
 function print(s) notices[#notices+1]=s end
 function GetNormalizedRealmName() return "Realm" end
 function GetRealmName() return "Realm" end
-function UnitFullName(u) local v=units[u]; if not v then return end; return v.name,"IgnoredRealm" end
+function UnitFullName(u) local v=units[u]; if not v then return end; return v.name,"Realm" end
 function GetGuildInfo() return guildName end
 function GetNumGuildMembers() return #members end
 function GetGuildRosterInfo(i) return members[i][1],"Rank",members[i][2] end

@@ -7,11 +7,13 @@ local rosterGUIDs={}
 local accessDelivery={}
 local announced={}
 local debugEnabled=false
+local accessDebug=false
 local debugSeen={}
 local elapsed, refresh, lastRequest = 0, 0, -100
 ForeverKoS = {}
 local function say(s) print("|cffff5555<in the bin> KoS List:|r " .. s) end
 local function clean(s) return (tostring(s or ""):gsub("[%c|]", " ")) end
+local function accessTrace(text) if accessDebug then say("ACCESS: " .. clean(text)) end end
 local function displayName(s) return clean(s):match("^[^-]+") or "" end
 ForeverKoS.DisplayName = displayName
 -- Character identity is the full first/last name only. Legacy realm suffixes
@@ -42,10 +44,17 @@ end
 ForeverKoS.ParseNameReason = parseNameReason
 local function key(s) local n = full(s); return n and string.lower(n) end
 local function unitName(unit)
-    local n=UnitFullName(unit)
+    local n,surname=UnitFullName(unit)
     if not n and UnitName then n=UnitName(unit) end
+    -- Forever returns first name and surname in the two UnitFullName slots.
+    -- A real realm value is still ignored, for compatibility with standard clients.
+    local realm=GetRealmName and GetRealmName()
+    local normalizedRealm=GetNormalizedRealmName and GetNormalizedRealmName()
+    if n and surname and surname~="" and not n:find(" ",1,true)
+        and surname~=realm and surname~=normalizedRealm then n=n .. " " .. surname end
     return full(n)
 end
+ForeverKoS.UnitCharacterName=unitName
 -- Migrate active records without modifying the retained legacy snapshots.
 local function migrateGuild(scope)
     local root=ForeverKoSDB.guilds
@@ -220,6 +229,10 @@ local function receive(prefix, message, channel, sender)
     if prefix ~= PREFIX or not db or type(message) ~= "string" or #message > 250 then return end
     if channel ~= "GUILD" and channel ~= "WHISPER" then return end
     local senderKey = key(sender)
+    if message:sub(1,2)=="G\t" then
+        accessTrace("Grant received from [" .. tostring(sender) .. "]; key=[" .. tostring(senderKey)
+            .. "]; roster rank=" .. tostring(senderKey and roster[senderKey]) .. "; self=[" .. tostring(me) .. "]")
+    end
     if not senderKey or roster[senderKey] == nil or senderKey == key(me) then return end
     if ForeverKoS.ReceivePresence and ForeverKoS.ReceivePresence(message,sender,channel) then return end
     if ForeverKoS.ReceiveGuildTarget and ForeverKoS.ReceiveGuildTarget(message,sender,channel,permitted(sender),GetTime()-lastRequest<=1200) then return end
@@ -239,10 +252,13 @@ local function receive(prefix, message, channel, sender)
         editor,name=full(decode(editor)),full(decode(name))
         if not full(editor) or not full(name) then return end
         if not isOfficer(sender) then
+            accessTrace("Grant rejected: sender officer permission unavailable.")
             if key(name)==key(me) then enqueue("J\t" .. revision .. "\tR","WHISPER",sender) end
             return
         end
         mergeGrant({name=name,editor=editor,rev=revision,deleted=deleted=="1"})
+        accessTrace("Grant target=[" .. tostring(name) .. "]; target matches self=" .. tostring(key(name)==key(me))
+            .. "; editing=" .. tostring(permitted(me)))
         if key(name)==key(me) then
             local current=db.grants[key(name)]
             if current.rev==revision and current.editor==editor and current.deleted==(deleted=="1") then
@@ -442,8 +458,27 @@ SlashCmdList.FOREVERKOS = function(input)
         table.sort(names)
         say(#names .. " active entries.")
         for _, n in ipairs(names) do say(clean(n)) end
+    elseif command == "accessdebug" then
+        accessDebug=rest~="off"
+        say("Access diagnostics " .. (accessDebug and "on. Ask the officer to grant access again; copy ACCESS lines." or "off."))
+        if accessDebug then
+            local n,r=UnitFullName("player")
+            accessTrace("UnitFullName=[" .. tostring(n) .. "]; surname/realm=[" .. tostring(r) .. "]; identity=[" .. tostring(me) .. "]")
+            accessTrace("Guild roster rows=" .. tostring(GetNumGuildMembers()))
+            local matches=0
+            for i=1,GetNumGuildMembers() do
+                local name,rankName,rank=GetGuildRosterInfo(i)
+                if key(name)==key(me) or (name and name:lower():find("oven",1,true)) or i<=3 then
+                    if matches<8 then
+                        accessTrace("Row " .. i .. ": name=[" .. tostring(name) .. "]; key=[" .. tostring(key(name))
+                            .. "]; rank=[" .. tostring(rankName) .. "]; index=" .. tostring(rank))
+                        matches=matches+1
+                    end
+                end
+            end
+        end
     elseif command == "status" then
-        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or "0.5.8"))
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.5.10"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])
