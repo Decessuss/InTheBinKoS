@@ -92,3 +92,8 @@ Before retrying an upload job after a connection error, check CurseForge Files f
 ### 0.5.3: officer access compatibility
 
 Own-player officer detection now also uses the game's native officer query, without waiting for the roster cache. Rank permission lookup prefers GUID-based rank order where available, falls back to the existing rank-index lookup, and refreshes on guild-rank changes. A player's native officer result is never used to authorize another sender. Missing/unreadable permission data does not grant remote access. `/kos status` includes native officer, cached rank, resolved rank order and officer-chat speak diagnostics. All guild members should update so sender validation uses the new lookup. The reported in-game issue still needs confirmation from the affected officer after updating.
+
+
+### 0.5.4: Enemy spotted radio alert
+
+Shared KoS sightings and Test Alert now use the classic Counter-Strike 1.6 "Enemy spotted" radio clip. The Sound checkbox still mutes it. Missing/unsupported audio falls back to the previous alert tone. Personal-list reminders keep their existing sound. Audio credits are included in Media/CREDITS.txt.

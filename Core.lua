@@ -231,6 +231,14 @@ local function edit(name, reason, deleted)
     enqueue(pack(r))
     say((deleted and "Removed " or "Added ") .. displayName(name) .. ".")
 end
+function ForeverKoS.PlaySightingSound()
+    if type(PlaySoundFile)=="function" then
+        local ok,played=pcall(PlaySoundFile,"Interface\\AddOns\\InTheBinKoS\\Media\\EnemySpotted.wav","Master")
+        if ok and played then return end
+    end
+    -- Keep alerts audible if the client cannot load the bundled clip.
+    PlaySound(8959,"Master")
+end
 local function alert(name, reason, test, sighting)
     if not test then
         local k=key(name)
@@ -248,7 +256,7 @@ local function alert(name, reason, test, sighting)
     say((test and "TEST: " or "Spotted: ") .. displayName(name)
         .. " spotted by " .. displayName(sighting and sighting.spotter or me or unitName("player") or "you")
         .. (reason ~= "" and (" — " .. clean(reason)) or "") .. location)
-    if db and db.sound ~= false then PlaySound(8959, "Master") end
+    if db and db.sound ~= false then ForeverKoS.PlaySightingSound() end
     local wa = ForeverAuras or WeakAuras
     local zone=sighting and ForeverKoS.SightingZone and ForeverKoS.SightingZone(sighting) or GetZoneText() or ""
     if wa and wa.ScanEvents then wa.ScanEvents("FOREVER_KOS_SPOTTED", name, reason, zone,
