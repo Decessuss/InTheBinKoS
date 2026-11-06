@@ -6,29 +6,29 @@ def client(name):
     r.execute(Path('Guilds.lua').read_text(encoding='utf-8'))
     r.execute('''
 GetGuildInfo=function(unit) if unit=="player" then return guildName end;return units[unit] and units[unit].guild end
-units.mouseover={name="New Enemy-Realm",faction="Horde",guild="Bad-Guild People"}
+units.mouseover={name="New Enemy",faction="Horde",guild="Bad-Guild People"}
 ''')
     return r
 a,m,n=client('Alice'),client('Member'),client('Listener')
 a.globals().ForeverKoS.EditGuildTarget('Bad-Guild People','Guild camping',False)
-base['deliver'](a,m,'Alice-Realm')
-base['deliver'](a,n,'Alice-Realm') # queue drained: explicitly sync remaining member below
+base['deliver'](a,m,'Alice')
+base['deliver'](a,n,'Alice') # queue drained: explicitly sync remaining member below
 assert m.globals().ForeverKoS.MatchRecord('New Enemy','bad-guild people').kind=='guild'
 assert m.globals().ForeverKoS.MatchRecord('New Enemy','Other') is None
 m.globals().ForeverKoS.EditGuildTarget('Forbidden','no',False)
 assert m.globals().ForeverKoS.MatchRecord('Somebody','Forbidden') is None
-base['packet'](m,'T\t999\tMember-Realm\t0\tForged\tno','Member-Realm')
+base['packet'](m,'T\t999\tMember\t0\tForged\tno','Member')
 assert m.globals().ForeverKoS.MatchRecord('Somebody','Forged') is None
 # Ordinary member mouseover generates fresh guild-wide report to the officer.
 m.execute('testFrame.OnEvent(testFrame,"UPDATE_MOUSEOVER_UNIT")')
 assert m.globals().sounds==1
-base['deliver'](m,a,'Member-Realm')
+base['deliver'](m,a,'Member')
 s=a.globals().ForeverKoS.GetGuildSighting('Bad-Guild People')
-assert s.name=='New Enemy-Realm' and s.spotter=='Member-Realm'
+assert s.name=='New Enemy' and s.spotter=='Member'
 assert a.globals().sounds==1
 assert any('Guild <Bad-Guild People>' in str(x) for x in a.globals().notices.values())
 # Same-faction and guildless players do not match; cooldown stays per character.
-m.execute('''now=200;stamp=1800000100;units.mouseover.name="Friendly Person-Realm";units.mouseover.faction="Alliance";testFrame.OnEvent(testFrame,"UPDATE_MOUSEOVER_UNIT")''')
+m.execute('''now=200;stamp=1800000100;units.mouseover.name="Friendly Person";units.mouseover.faction="Alliance";testFrame.OnEvent(testFrame,"UPDATE_MOUSEOVER_UNIT")''')
 assert m.globals().sounds==1
 m.execute('units.mouseover.faction="Horde";units.mouseover.guild=nil;testFrame.OnEvent(testFrame,"UPDATE_MOUSEOVER_UNIT")')
 assert m.globals().sounds==1
@@ -39,18 +39,18 @@ base['command'](a,'add "New Enemy" Personal reason')
 assert a.globals().ForeverKoS.MatchRecord('New Enemy','Bad-Guild People').reason=='Personal reason'
 a.globals().ForeverKoS.SetGuildMode(True)
 rows=a.globals().ForeverKoS.GetState()[0]
-assert len(rows)==1 and rows[1].name=='Bad-Guild People' and rows[1].sighting.name=='New Enemy-Realm'
+assert len(rows)==1 and rows[1].name=='Bad-Guild People' and rows[1].sighting.name=='New Enemy'
 # Cached member reply serves rules and history without an officer online.
-base['packet'](m,'Q','Listener-Realm')
+base['packet'](m,'Q','Listener')
 cache=base['sent'](m)
 assert any(msg.startswith('U\t') for _,msg,_,_ in cache)
-for _,msg,ch,_ in cache:base['packet'](n,msg,'Member-Realm',ch)
+for _,msg,ch,_ in cache:base['packet'](n,msg,'Member',ch)
 assert n.globals().ForeverKoS.MatchRecord('Unknown','Bad-Guild People') is not None
 # Remove/tombstone wins over stale snapshots; guild change isolates the rules.
 a.globals().ForeverKoS.EditGuildTarget('Bad-Guild People','',True)
-base['deliver'](a,m,'Alice-Realm')
+base['deliver'](a,m,'Alice')
 assert m.globals().ForeverKoS.MatchRecord('Unknown','Bad-Guild People') is None
-for _,msg,ch,_ in cache:base['packet'](m,msg,'Listener-Realm',ch)
+for _,msg,ch,_ in cache:base['packet'](m,msg,'Listener',ch)
 assert m.globals().ForeverKoS.MatchRecord('Unknown','Bad-Guild People') is None
 m.execute('guildName="Other Guild";testFrame.OnEvent(testFrame,"PLAYER_GUILD_UPDATE")')
 assert m.globals().ForeverKoS.MatchRecord('Unknown','Bad-Guild People') is None

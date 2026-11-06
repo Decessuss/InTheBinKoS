@@ -6,13 +6,13 @@ from lupa.lua51 import LuaRuntime
 source = Path('Core.lua').read_text(encoding='utf-8')
 mock = '''
 now=100; playerName=...; guildName="Guild"; sounds=0; notices={}; outgoing={}; scans={}
-members={{"Alice-Realm",0},{"Bob-Realm",1},{"Member-Realm",2},{"Listener-Realm",3}}
-units={player={name=playerName,faction="Alliance"},target={name="Enemy-Realm",faction="Horde"}}
+members={{"Alice",0},{"Bob",1},{"Member",2},{"Listener",3}}
+units={player={name=playerName,faction="Alliance"},target={name="Enemy",faction="Horde"}}
 function CreateFrame() local f={}; function f:SetScript(k,v) self[k]=v end; function f:RegisterEvent() end; testFrame=f; return f end
 function print(s) notices[#notices+1]=s end
 function GetNormalizedRealmName() return "Realm" end
 function GetRealmName() return "Realm" end
-function UnitFullName(u) local v=units[u]; if not v then return end; return v.name:match("^([^-]+)%-(.*)$") end
+function UnitFullName(u) local v=units[u]; if not v then return end; return v.name,"IgnoredRealm" end
 function GetGuildInfo() return guildName end
 function GetNumGuildMembers() return #members end
 function GetGuildRosterInfo(i) return members[i][1],"Rank",members[i][2] end
@@ -30,15 +30,15 @@ SlashCmdList={}
 
 def client(name):
     r=LuaRuntime(unpack_returned_tuples=True)
-    r.execute(mock,name+'-Realm')
+    r.execute(mock,name+'')
     r.execute(source)
     r.execute('testFrame.OnEvent(testFrame,"ADDON_LOADED","ForeverKoS"); testFrame.OnEvent(testFrame,"PLAYER_LOGIN")')
     return r
 
 def command(r,s): r.globals().SlashCmdList.FOREVERKOS(s)
-def records(r): return r.globals().ForeverKoSDB.guilds['Guild@Realm'].records
+def records(r): return r.globals().ForeverKoSDB.guilds['Guild'].records
 def tick(r): r.execute('testFrame.OnUpdate(testFrame,0.21)')
-def packet(r,msg,sender='Alice-Realm',channel='GUILD'):
+def packet(r,msg,sender='Alice',channel='GUILD'):
     r.globals().testFrame.OnEvent(r.globals().testFrame,'CHAT_MSG_ADDON','ForeverKoS1',msg,channel,sender)
 def sent(r):
     result=[]
@@ -52,22 +52,22 @@ def deliver(a,b,sender):
 a,b,m,l=[client(n) for n in ('Alice','Bob','Member','Listener')]
 for r in (a,b,m,l): sent(r)
 command(a,'add target Camping')
-assert records(a)['enemy-realm'].reason=='Camping'
-deliver(a,m,'Alice-Realm')
-assert records(m)['enemy-realm'].reason=='Camping'
-command(m,'remove Enemy-Realm'); command(l,'add Other-Realm')
-assert not records(m)['enemy-realm'].deleted
-assert records(l)['other-realm'] is None
-packet(m,'R\t999\tMember-Realm\t1\tEnemy-Realm\t','Member-Realm')
-assert not records(m)['enemy-realm'].deleted
-packet(m,'R\t999\tListener-Realm\t1\tEnemy-Realm\t','Listener-Realm')
-assert not records(m)['enemy-realm'].deleted
-command(a,'remove Enemy-Realm'); deliver(a,m,'Alice-Realm')
-assert records(m)['enemy-realm'].deleted
-packet(m,'R\t1\tAlice-Realm\t0\tEnemy-Realm\tOld')
-assert records(m)['enemy-realm'].deleted
-command(a,'add Enemy-Realm Readded'); deliver(a,m,'Alice-Realm')
-assert not records(m)['enemy-realm'].deleted
+assert records(a)['enemy'].reason=='Camping'
+deliver(a,m,'Alice')
+assert records(m)['enemy'].reason=='Camping'
+command(m,'remove Enemy'); command(l,'add Other')
+assert not records(m)['enemy'].deleted
+assert records(l)['other'] is None
+packet(m,'R\t999\tMember\t1\tEnemy\t','Member')
+assert not records(m)['enemy'].deleted
+packet(m,'R\t999\tListener\t1\tEnemy\t','Listener')
+assert not records(m)['enemy'].deleted
+command(a,'remove Enemy'); deliver(a,m,'Alice')
+assert records(m)['enemy'].deleted
+packet(m,'R\t1\tAlice\t0\tEnemy\tOld')
+assert records(m)['enemy'].deleted
+command(a,'add Enemy Readded'); deliver(a,m,'Alice')
+assert not records(m)['enemy'].deleted
 for _ in range(2): m.execute('testFrame.OnEvent(testFrame,"PLAYER_TARGET_CHANGED")')
 assert m.globals().sounds==1 and len(m.globals().scans)==1
 m.execute('now=161;testFrame.OnEvent(testFrame,"UPDATE_MOUSEOVER_UNIT");testFrame.OnEvent(testFrame,"PLAYER_TARGET_CHANGED")')
@@ -79,32 +79,32 @@ m.execute('units.target.faction="Horde";testFrame.OnEvent(testFrame,"PLAYER_TARG
 assert m.globals().sounds==2
 command(m,'test'); assert m.globals().sounds==3
 # Concurrent revision, deterministic editor tie-break, in both delivery orders.
-command(b,'remove Rival-Realm'); command(a,'add Rival-Realm Added')
+command(b,'remove Rival'); command(a,'add Rival Added')
 pa=[x[1] for x in sent(a) if x[1].startswith('R\t')][-1]
 pb=[x[1] for x in sent(b) if x[1].startswith('R\t')][-1]
 # Equalize revisions explicitly to exercise exact tie.
-pa='R\t10\tAlice-Realm\t0\tRival-Realm\tAdded'
-pb='R\t10\tBob-Realm\t1\tRival-Realm\t'
-packet(m,pa);packet(m,pb,'Bob-Realm');packet(l,pb,'Bob-Realm');packet(l,pa)
-assert records(m)['rival-realm'].deleted and records(l)['rival-realm'].deleted
-assert records(m)['rival-realm'].editor=='Bob-Realm'
+pa='R\t10\tAlice\t0\tRival\tAdded'
+pb='R\t10\tBob\t1\tRival\t'
+packet(m,pa);packet(m,pb,'Bob');packet(l,pb,'Bob');packet(l,pa)
+assert records(m)['rival'].deleted and records(l)['rival'].deleted
+assert records(m)['rival'].editor=='Bob'
 # Request/response sends a snapshot only from an authorized officer.
-packet(b,'Q','Member-Realm'); snapshot=sent(b)
-assert any(v[1].startswith('C\t') and v[2]=='WHISPER' and v[3]=='Member-Realm' for v in snapshot)
-packet(m,'Q','Bob-Realm'); assert all(v[1].startswith('C\t') for v in sent(m))
+packet(b,'Q','Member'); snapshot=sent(b)
+assert any(v[1].startswith('C\t') and v[2]=='WHISPER' and v[3]=='Member' for v in snapshot)
+packet(m,'Q','Bob'); assert all(v[1].startswith('C\t') for v in sent(m))
 # Permission change takes effect without trusting sender's claim.
 m.execute('members[2][2]=2;testFrame.OnEvent(testFrame,"GUILD_ROSTER_UPDATE")')
-packet(m,'R\t20\tBob-Realm\t0\tDemoted-Realm\t','Bob-Realm')
-assert records(m)['demoted-realm'] is None
+packet(m,'R\t20\tBob\t0\tDemoted\t','Bob')
+assert records(m)['demoted'] is None
 # Unsupported permission API fails closed for non-GM.
 b.execute('C_GuildInfo.GuildControlGetRankFlags=nil')
-command(b,'add Unsupported-Realm'); assert records(b)['unsupported-realm'] is None
+command(b,'add Unsupported'); assert records(b)['unsupported'] is None
 # Guild scope changes stop former guild alerts and isolate edits.
 m.execute('guildName=nil;testFrame.OnEvent(testFrame,"PLAYER_GUILD_UPDATE");now=400;testFrame.OnEvent(testFrame,"PLAYER_TARGET_CHANGED")')
 assert m.globals().sounds==3
-packet(l,'R\t999\tAlice-Realm\t0\tBroken-Realm\tbad%09text')
-assert records(l)['broken-realm'] is None
-command(a,'add Long-Realm '+('x'*500)); assert len(records(a)['long-realm'].reason)==60
+packet(l,'R\t999\tAlice\t0\tBroken\tbad%09text')
+assert records(l)['broken'] is None
+command(a,'add Long '+('x'*500)); assert len(records(a)['long'].reason)==60
 # Syntax-check the documented aura functions with Lua 5.1.
 text=Path('docs/ForeverKoS-SETUP.md').read_text(encoding='utf-8')
 for snippet in text.split('```lua\n')[1:]:

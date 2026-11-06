@@ -14,15 +14,14 @@ local function say(s) print("|cffff5555<in the bin> KoS List:|r " .. s) end
 local function clean(s) return (tostring(s or ""):gsub("[%c|]", " ")) end
 local function displayName(s) return clean(s):match("^[^-]+") or "" end
 ForeverKoS.DisplayName = displayName
-local function realm() return (GetNormalizedRealmName and GetNormalizedRealmName() or GetRealmName()):gsub("%s", "") end
+-- Character identity is the full first/last name only. Legacy realm suffixes
+-- are discarded at every input boundary, including roster and addon messages.
 local function full(s)
-    if type(s) ~= "string" or s:find("[%c|]") then return nil end
-    s = s:match("^ *(.-) *$"):gsub(" +", " ")
-    if s == "" then return nil end
-    if not s:find("-", 1, true) then s = s .. "-" .. realm() end
-    local character, server = s:match("^([^-]+)%-([^%-]+)$")
-    if #s > 100 or not character or character:match("^ ") or character:match(" $")
-        or not server or server:find("%s") then return nil end
+    if type(s)~="string" or s:find("[%c|]") then return nil end
+    s=s:match("^ *(.-) *$"):gsub(" +"," ")
+    s=s:match("^([^-]+)") or ""
+    s=s:match("^ *(.-) *$")
+    if s=="" or #s>100 then return nil end
     return s
 end
 -- Quoted names support spaces while keeping existing single-name commands compatible.
@@ -43,10 +42,45 @@ end
 ForeverKoS.ParseNameReason = parseNameReason
 local function key(s) local n = full(s); return n and string.lower(n) end
 local function unitName(unit)
-    local n, r = UnitFullName(unit)
-    if not n and UnitName then n,r=UnitName(unit) end
-    if not n then return nil end
-    return full(n .. "-" .. ((r and r ~= "") and r:gsub("%s", "") or realm()))
+    local n=UnitFullName(unit)
+    if not n and UnitName then n=UnitName(unit) end
+    return full(n)
+end
+-- Migrate active records without modifying the retained legacy snapshots.
+local function migrateGuild(scope)
+    local root=ForeverKoSDB.guilds
+    local target=root[scope] or {clock=0,records={}}
+    if target.realmFreeNames then return target end
+    local result={clock=target.clock or 0,records={},grants={},sightings={},guildTargets={},realmFreeNames=true}
+    for k,v in pairs(target) do
+        if k~="records" and k~="grants" and k~="sightings" and k~="guildTargets" then result[k]=v end
+    end
+    local function mergeMap(source,field)
+        for _,old in pairs(source[field] or {}) do
+            local row={};for k,v in pairs(old) do row[k]=v end
+            row.editor=row.editor and full(row.editor)
+            row.spotter=row.spotter and full(row.spotter)
+            if field~="guildTargets" then row.name=full(row.name) end
+            local k=field=="guildTargets" and row.name and string.lower(row.name) or key(row.name)
+            if k then
+                local previous=result[field][k]
+                local stamp=field=="sightings" and (row.stamp or 0) or (row.rev or 0)
+                local oldStamp=previous and (field=="sightings" and (previous.stamp or 0) or (previous.rev or 0)) or -1
+                local editor=row.editor or row.spotter or ""
+                local oldEditor=previous and (previous.editor or previous.spotter or "") or ""
+                if not previous or stamp>oldStamp or (stamp==oldStamp and (editor>oldEditor or (editor==oldEditor and row.deleted))) then result[field][k]=row end
+                if field~="sightings" then result.clock=math.max(result.clock,row.rev or 0) end
+            end
+        end
+    end
+    for oldScope,source in pairs(root) do
+        if oldScope==scope or oldScope:sub(1,#scope+1)==scope .. "@" then
+            for _,field in ipairs({"records","grants","sightings","guildTargets"}) do mergeMap(source,field) end
+        end
+    end
+    result.realmFreeNames=true
+    root[scope]=result
+    return result
 end
 local function nativeOfficer()
     local query=C_GuildInfo and C_GuildInfo.IsGuildOfficer or IsGuildOfficer
@@ -94,15 +128,14 @@ end
 local function rebuild()
     local g = GetGuildInfo("player")
     me = unitName("player")
-    local scope = g and (g .. "@" .. realm()) or nil
+    local scope = g
     if scope ~= guild then
         guild, db = scope, nil
         queue, seen, requests = {}, {}, {}
         announced={};accessDelivery={}
         lastRequest = -100
         if scope then
-            ForeverKoSDB.guilds[scope] = ForeverKoSDB.guilds[scope] or {clock=0, records={}}
-            db = ForeverKoSDB.guilds[scope]
+            db=migrateGuild(scope)
         end
     end
     roster,rosterGUIDs = {},{}
@@ -120,8 +153,9 @@ local function pack(r)
 end
 local function merge(r)
     if not db then return end
+    r.name=full(r.name);r.editor=full(r.editor)
     local k = key(r.name)
-    if not k then return end
+    if not k or not r.editor then return end
     local old = db.records[k]
     db.clock = math.max(db.clock, r.rev)
     if not old or r.rev > old.rev or (r.rev == old.rev and r.editor > old.editor) then
@@ -139,7 +173,9 @@ local function packGrant(r)
 end
 local function mergeGrant(r)
     db.grants=db.grants or {}
+    r.name=full(r.name);r.editor=full(r.editor)
     local k=key(r.name)
+    if not k or not r.editor then return end
     local old=db.grants[k]
     db.clock=math.max(db.clock,r.rev)
     if not old or r.rev>old.rev or (r.rev==old.rev and r.editor>old.editor) then db.grants[k]=r end
@@ -156,7 +192,7 @@ function ForeverKoS.SetEditor(name,enabled)
     local r={name=name,editor=me,rev=db.clock+1,deleted=not enabled}
     local message=packGrant(r)
     if #message>250 then say("Character name is too long to sync."); return end
-    mergeGrant(r); accessDelivery[key(name)]={rev=r.rev,status="Awaiting player confirmation"};enqueue(message)
+    mergeGrant(r); accessDelivery[key(name)]={rev=r.rev,status="Waiting for recipient addon"};enqueue(message)
     say((enabled and "Queued list-editing grant for " or "Queued named-access revocation for ") .. displayName(name)
         .. (not enabled and ". Guild officer permissions still apply." or "."))
 end
@@ -191,7 +227,7 @@ local function receive(prefix, message, channel, sender)
         local revision,result=message:match("^J\t(%d+)\t([AR])$")
         local pending=accessDelivery[senderKey]
         if channel=="WHISPER" and pending and pending.rev==tonumber(revision) then
-            pending.status=result=="A" and "Confirmed by player" or "Rejected: officer not recognized on their client"
+            pending.status=result=="A" and "Confirmed by recipient addon" or "Rejected: officer not recognized on their client"
             say(displayName(sender) .. ": " .. pending.status)
         end
         return
@@ -200,7 +236,7 @@ local function receive(prefix, message, channel, sender)
         local revision,editor,deleted,name=message:match("^G\t(%d+)\t([^\t]+)\t([01])\t([^\t]+)$")
         revision=tonumber(revision)
         if not revision or revision>1000000000000 then return end
-        editor,name=decode(editor),decode(name)
+        editor,name=full(decode(editor)),full(decode(name))
         if not full(editor) or not full(name) then return end
         if not isOfficer(sender) then
             if key(name)==key(me) then enqueue("J\t" .. revision .. "\tR","WHISPER",sender) end
@@ -247,7 +283,7 @@ end
 local function edit(name, reason, deleted)
     if not db or not permitted(me) then say("Editing requires current officer-chat speak permission and a loaded guild roster."); return end
     name = full(name)
-    if not name then say("Use a full player name or Name-Realm."); return end
+    if not name then say("Use the full first and last character name."); return end
     -- Bound encoded record size, including multibyte names. Never save unsyncable edits.
     local r = {rev=db.clock+1, editor=me, name=name, reason=clean(reason):sub(1,60), deleted=deleted}
     if #pack(r) > 250 then say("Name/reason too long to sync; use a shorter reason."); return end
@@ -375,7 +411,7 @@ function ForeverKoS.AddTarget(reason)
     if not UnitIsPlayer("target") then say("Target a player first."); return end
     edit(unitName("target"), reason or "", false)
 end
-function ForeverKoS.Test() alert("Example-" .. realm(), "Test alert", true) end
+function ForeverKoS.Test() alert("Example", "Test alert", true) end
 function ForeverKoS.Sync() request() end
 function ForeverKoS.SetSound(value) if db then db.sound = value end end
 function ForeverKoS.SetAlerts(value) if db then db.enabled = value end end
@@ -397,7 +433,7 @@ SlashCmdList.FOREVERKOS = function(input)
         debugEnabled=rest~="off";debugSeen={};say("Detection diagnostics " .. (debugEnabled and "on. Hover the enemy and copy the DEBUG line." or "off."))
     elseif command == "sync" then request(); say("Requested cached list from online guild members (30-second cooldown).")
     elseif command == "publish" then publish(); say("Publish requested; officer permission is required.")
-    elseif command == "test" then alert("Example-" .. realm(), "Test alert", true)
+    elseif command == "test" then alert("Example", "Test alert", true)
     elseif command == "sound" and db then db.sound = rest ~= "off"; say("Sound " .. (db.sound and "on" or "off"))
     elseif command == "alerts" and db then db.enabled = rest ~= "off"; say("Alerts " .. (db.enabled and "on" or "off"))
     elseif command == "list" and db then
@@ -413,7 +449,7 @@ SlashCmdList.FOREVERKOS = function(input)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])
             .. "; rank order=" .. tostring(order) .. "; officer-chat speak=" .. tostring(flags and flags[4]))
     else
-        say("/kos add [Name-Realm|target] [reason] (quote names with spaces); /kos remove [Name-Realm|target]; /kos list; /kos sync; /kos publish; /kos test; /kos status; /kos sound on|off; /kos alerts on|off")
+        say("/kos add [Name|target] [reason] (quote names with spaces); /kos remove [Name|target]; /kos list; /kos sync; /kos publish; /kos test; /kos status; /kos sound on|off; /kos alerts on|off")
     end
 end
 frame:SetScript("OnEvent", function(_, event, ...)

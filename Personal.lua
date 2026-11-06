@@ -5,9 +5,8 @@ local seen,present={},{}
 local function say(text) print("|cffffb45bPersonal avoid list:|r " .. text) end
 local function clean(s) return tostring(s or ""):gsub("[%c|]"," ") end
 local function nameOf(unit)
-    local n,r=UnitFullName(unit)
+    local n=UnitFullName(unit)
     if not n then return end
-    if r and r~="" then n=n .. "-" .. r:gsub("%s","") end
     return api.NormalizeName(n)
 end
 local function data()
@@ -15,7 +14,24 @@ local function data()
     local me=nameOf("player")
     if not me then return end
     ForeverKoSDB.personal=ForeverKoSDB.personal or {}
-    ForeverKoSDB.personal[me]=ForeverKoSDB.personal[me] or {records={}}
+    local root=ForeverKoSDB.personal
+    if not root[me] or not root[me].realmFreeNames then
+        local merged={records={},realmFreeNames=true}
+        local names={}
+        for oldName in pairs(root) do if api.NameKey(oldName)==api.NameKey(me) then names[#names+1]=oldName end end
+        table.sort(names)
+        -- The existing canonical entry wins over legacy variants for private notes/settings.
+        for i=#names,1,-1 do
+            local source=root[names[i]]
+            for k,v in pairs(source) do if k~="records" then merged[k]=v end end
+            for _,old in pairs(source.records or {}) do
+                local row={};for k,v in pairs(old) do row[k]=v end
+                row.name=api.NormalizeName(row.name);row.editor=api.NormalizeName(row.editor)
+                if row.name then merged.records[api.NameKey(row.name)]=row end
+            end
+        end
+        merged.realmFreeNames=true;root[me]=merged
+    end
     return ForeverKoSDB.personal[me],me
 end
 function api.IsPersonalMode() return personal end

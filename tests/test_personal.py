@@ -8,17 +8,17 @@ r.globals().testFrame=core
 ns['sent'](r)
 r.execute('''
 ForeverKoS.SetPersonalMode(true)
-ForeverKoS.Edit("Friend-Realm","Ninja looter",false)
+ForeverKoS.Edit("Friend","Ninja looter",false)
 local rows,canEdit=ForeverKoS.GetState();assert(canEdit and #rows==1 and rows[1].reason=="Ninja looter")
 assert(not ForeverKoS.CanManageAccess())
-assert(ForeverKoSDB.guilds["Guild@Realm"].records["friend-realm"]==nil)
-units.mouseover={name="Friend-Realm",faction="Alliance"}
+assert(ForeverKoSDB.guilds["Guild"].records["friend"]==nil)
+units.mouseover={name="Friend",faction="Alliance"}
 testFrame.OnEvent(testFrame,"UPDATE_MOUSEOVER_UNIT")
 assert(sounds==1)
 testFrame.OnEvent(testFrame,"UPDATE_MOUSEOVER_UNIT")
 assert(sounds==1)
 assert(notices[#notices]:find("On your personal avoid list"))
-partyCount=1;units.party1={name="Friend-Realm",faction="Alliance"}
+partyCount=1;units.party1={name="Friend",faction="Alliance"}
 function IsInRaid() return false end
 function GetNumSubgroupMembers() return partyCount end
 ForeverKoS.CheckPersonalGroup();assert(sounds==2)
@@ -33,13 +33,13 @@ local guildRows,canEdit,_,sound,alerts=ForeverKoS.GetState()
 assert(#guildRows==0 and not canEdit and sound and alerts)
 ForeverKoS.SetPersonalMode(true)
 ForeverKoS.SetAlerts(true)
-units.player.name="Another-Realm"
+units.player.name="Another"
 assert(#ForeverKoS.GetState()==0)
-units.player.name="Member-Realm"
+units.player.name="Member"
 assert(#ForeverKoS.GetState()==1)
 guildName=nil;testFrame.OnEvent(testFrame,"PLAYER_GUILD_UPDATE")
 assert(#ForeverKoS.GetState()==1)
-ForeverKoS.Edit("Friend-Realm","",true);assert(#ForeverKoS.GetState()==0)
+ForeverKoS.Edit("Friend","",true);assert(#ForeverKoS.GetState()==0)
 ''')
 assert not ns['sent'](r)
 print('PASS: ordinary member edits private list; no guild records or messages; friendly mouseover cooldown; party-entry warning without repeated roster spam; independent settings; per-character persistence; guildless use; removal.')

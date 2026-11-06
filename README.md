@@ -117,4 +117,11 @@ The **Users & Access** button is always visible at the top, including from Perso
 
 Click **Show: Addon Users** to switch to **Show: KoS Editors**. Addon Users shows detected online users. KoS Editors includes recognized officers and named grantees in the loaded guild roster, including offline users and users without a detected addon. Rows explicitly show **KoS editing: YES/NO**, role, detected version and online/offline state. Select a row to fill Grant Access / Revoke Access.
 
-New grants and revocations show **Awaiting player confirmation**, **Confirmed by player**, or **Rejected: officer not recognized on their client**. The target must be online and using 0.5.8+ for confirmations; older clients can still accept compatible grants but will not acknowledge them. A queued/local grant is not proof the target accepted it. Clients continue to validate the sending officer themselves; there is no self-asserted officer bypass. If rejected, collect `/kos status` from the sending officer and affected recipient. Existing rank-based access is never revoked by removing a named grant.
+New grants and revocations show **Waiting for recipient addon**, **Confirmed by recipient addon**, or **Rejected: officer not recognized on their client**. The target must be online and using 0.5.8+ for confirmations; older clients can still accept compatible grants but will not acknowledge them. A queued/local grant is not proof the target accepted it. Clients continue to validate the sending officer themselves; there is no self-asserted officer bypass. If rejected, collect `/kos status` from the sending officer and affected recipient. Existing rank-based access is never revoked by removing a named grant.
+
+
+### 0.5.9: Realm-independent character access
+
+Character identity now uses the full first and last name without realm suffixes across guild rosters, grants, messages, sightings and personal lists. Existing saved records migrate automatically, retaining legacy snapshots. Characters with the same name across realms share an identity; guild lists remain separate by guild name. Alts require separate grants.
+
+Grant confirmation is an automatic reply from the recipient addon, not a popup. Both players should update to 0.5.9. Mixed-realm grant, acknowledgement and revocation tests pass; in-game verification is still required.

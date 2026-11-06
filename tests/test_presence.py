@@ -20,16 +20,16 @@ end
 a,m,n=client('Alice'),client('Member'),client('Listener')
 for r in (a,m,n):base['sent'](r)
 a.globals().ForeverKoS.RequestAddonUsers()
-base['deliver'](a,m,'Alice-Realm')
+base['deliver'](a,m,'Alice')
 m.execute('now=140')
 a.execute('now=140')
-base['packet'](m,'P','Alice-Realm')
+base['packet'](m,'P','Alice')
 reply=base['sent'](m)
 assert any(msg=='V\t0.5.8' for _,msg,_,_ in reply)
-for _,msg,ch,_ in reply:base['packet'](a,msg,'Member-Realm',ch)
+for _,msg,ch,_ in reply:base['packet'](a,msg,'Member',ch)
 rows=a.globals().ForeverKoS.GetAddonUsers()
-member=next(row for row in rows.values() if row.name=='Member-Realm')
-assert not any(row.name=='Listener-Realm' for row in rows.values())
+member=next(row for row in rows.values() if row.name=='Member')
+assert not any(row.name=='Listener' for row in rows.values())
 assert member.version=='0.5.8' and member.detected and member.access=='Member'
 
 assert len(m.globals().ForeverKoS.GetAddonUsers())==0
@@ -37,27 +37,27 @@ m.globals().ForeverKoS.SetUsersMode(True)
 assert not m.globals().ForeverKoS.IsUsersMode()
 assert not m.globals().ForeverKoS.CanManageAccess()
 # Presence claims never confer edit/grant rights; outsiders/malformed data ignored.
-base['packet'](m,'V\t0.5.6','Listener-Realm')
+base['packet'](m,'V\t0.5.6','Listener')
 assert not m.globals().ForeverKoS.GetState()[1]
-base['packet'](a,'V\t9.9.9','Outsider-Realm')
-base['packet'](a,'V\tbad\tforged','Listener-Realm')
-assert not any(row.name=='Listener-Realm' for row in a.globals().ForeverKoS.GetAddonUsers().values())
+base['packet'](a,'V\t9.9.9','Outsider')
+base['packet'](a,'V\tbad\tforged','Listener')
+assert not any(row.name=='Listener' for row in a.globals().ForeverKoS.GetAddonUsers().values())
 # Existing officer controls applied to a discovered user synchronize normally.
 a.globals().ForeverKoS.SetEditor(member.name,True)
-base['deliver'](a,m,'Alice-Realm')
+base['deliver'](a,m,'Alice')
 assert m.globals().ForeverKoS.GetState()[1]
 assert not m.globals().ForeverKoS.CanManageAccess()
 a.globals().ForeverKoS.SetEditor(member.name,False)
-base['deliver'](a,m,'Alice-Realm')
+base['deliver'](a,m,'Alice')
 assert not m.globals().ForeverKoS.GetState()[1]
 # Session reports expire and disappear when the roster marks the member offline.
 a.execute('now=900')
-assert not any(row.name=='Member-Realm' for row in a.globals().ForeverKoS.GetAddonUsers().values())
+assert not any(row.name=='Member' for row in a.globals().ForeverKoS.GetAddonUsers().values())
 a.execute('''
 local old=GetGuildRosterInfo
-GetGuildRosterInfo=function(i) local n,r,k=old(i);return n,r,k,nil,nil,nil,nil,nil,n~="Member-Realm" end
+GetGuildRosterInfo=function(i) local n,r,k=old(i);return n,r,k,nil,nil,nil,nil,nil,n~="Member" end
 ''')
-assert not any(row.name=='Member-Realm' for row in a.globals().ForeverKoS.GetAddonUsers().values())
+assert not any(row.name=='Member' for row in a.globals().ForeverKoS.GetAddonUsers().values())
 # Guild switch resets discovery. Demotion closes officer-only view immediately.
 a.globals().ForeverKoS.SetUsersMode(True)
 assert a.globals().ForeverKoS.IsUsersMode()
@@ -69,7 +69,7 @@ print('PASS: version discovery, member replies, officer-only view, unknown/offli
 u=ns['a']
 u.execute("ForeverKoS.SetPersonalMode(false);ForeverKoS.SetGuildMode(false)")
 u.execute(Path('Presence.lua').read_text(encoding='utf-8'))
-u.execute('ForeverKoS.ReceivePresence("V\\t0.5.8","Member-Realm","GUILD")')
+u.execute('ForeverKoS.ReceivePresence("V\\t0.5.8","Member","GUILD")')
 u.execute(''' 
 local old=GetGuildRosterInfo
 GetGuildRosterInfo=function(i)local n,r,k=old(i);return n,r,k,nil,nil,nil,nil,nil,true end
@@ -79,17 +79,17 @@ assert(ForeverKoS.IsUsersMode())
 local selectedRow
 for _,f in ipairs(frames) do
  local r=rawget(f,"record")
- if r and r.name=="Member-Realm" then selectedRow=f end
+ if r and r.name=="Member" then selectedRow=f end
 end
 assert(selectedRow);selectedRow.scripts.OnClick(selectedRow,"LeftButton")
 local filled=false
 for _,f in ipairs(frames) do
- if rawget(f,"template")=="InputBoxTemplate" and f:GetText()=="Member-Realm" then filled=true end
+ if rawget(f,"template")=="InputBoxTemplate" and f:GetText()=="Member" then filled=true end
 end
 assert(filled)
 for _,f in ipairs(frames) do if rawget(f,"text")=="Grant Access" then f.scripts.OnClick() end end
-assert(ForeverKoS.SharedAccessLabel("Member-Realm")=="Granted editor")
+assert(ForeverKoS.SharedAccessLabel("Member")=="Granted editor")
 for _,f in ipairs(frames) do if rawget(f,"text")=="Revoke Access" then f.scripts.OnClick() end end
-assert(ForeverKoS.SharedAccessLabel("Member-Realm")=="Member")
+assert(ForeverKoS.SharedAccessLabel("Member")=="Member")
 ''')
 print('PASS: selecting an Addon Users row fills the name and actual UI Grant/Revoke actions apply to that player.')

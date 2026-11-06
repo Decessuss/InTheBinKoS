@@ -13,9 +13,9 @@ function PlaySoundFile(path,channel)
 end
 ''')
 base['command'](a,'add target Sound check')
-base['deliver'](a,b,'Alice-Realm')
+base['deliver'](a,b,'Alice')
 a.execute('testFrame.OnEvent(testFrame,"PLAYER_TARGET_CHANGED")')
-base['deliver'](a,b,'Alice-Realm')
+base['deliver'](a,b,'Alice')
 assert a.globals().clips==1 and b.globals().clips==1
 assert a.globals().sounds==0 and b.globals().sounds==0
 base['command'](b,'test');assert b.globals().clips==2

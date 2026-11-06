@@ -4,31 +4,31 @@ client,base=ns['client'],ns['base']
 a,m=client('Alice'),client('Member')
 for r in (a,m):base['sent'](r)
 a.globals().ForeverKoS.SetEditor('Member',True)
-assert a.globals().ForeverKoS.GetGrantDelivery('Member').status=='Awaiting player confirmation'
-base['deliver'](a,m,'Alice-Realm');base['deliver'](m,a,'Member-Realm')
+assert a.globals().ForeverKoS.GetGrantDelivery('Member').status=='Waiting for recipient addon'
+base['deliver'](a,m,'Alice');base['deliver'](m,a,'Member')
 assert m.globals().ForeverKoS.GetState()[1]
-assert a.globals().ForeverKoS.GetGrantDelivery('Member').status=='Confirmed by player'
+assert a.globals().ForeverKoS.GetGrantDelivery('Member').status=='Confirmed by recipient addon'
 a.globals().ForeverKoS.ToggleAccessFilter()
 editors=a.globals().ForeverKoS.GetAddonUsers()
-member=next(row for row in editors.values() if row.name=='Member-Realm')
+member=next(row for row in editors.values() if row.name=='Member')
 assert member.access=='Granted editor' and not member.detected and 'YES' in member.reason
 # The explicit editors view includes offline grantees, unlike Addon Users.
 a.execute('''
 local old=GetGuildRosterInfo
-GetGuildRosterInfo=function(i)local n,r,k=old(i);return n,r,k,nil,nil,nil,nil,nil,n~="Member-Realm" end
+GetGuildRosterInfo=function(i)local n,r,k=old(i);return n,r,k,nil,nil,nil,nil,nil,n~="Member" end
 ''')
-assert any(row.name=='Member-Realm' for row in a.globals().ForeverKoS.GetAddonUsers().values())
+assert any(row.name=='Member' for row in a.globals().ForeverKoS.GetAddonUsers().values())
 a.globals().ForeverKoS.SetEditor('Member',False)
-base['deliver'](a,m,'Alice-Realm');base['deliver'](m,a,'Member-Realm')
+base['deliver'](a,m,'Alice');base['deliver'](m,a,'Member')
 assert not m.globals().ForeverKoS.GetState()[1]
-assert not any(row.name=='Member-Realm' for row in a.globals().ForeverKoS.GetAddonUsers().values())
+assert not any(row.name=='Member' for row in a.globals().ForeverKoS.GetAddonUsers().values())
 # A locally recognized officer whose rank flags are missing on the peer is explicitly rejected.
 officer,peer=client('Bob'),client('Member')
 for r in (officer,peer):base['sent'](r)
 officer.execute('C_GuildInfo.IsGuildOfficer=function()return true end')
 peer.execute('C_GuildInfo.GuildControlGetRankFlags=function()return {} end')
 officer.globals().ForeverKoS.SetEditor('Member',True)
-base['deliver'](officer,peer,'Bob-Realm');base['deliver'](peer,officer,'Member-Realm')
+base['deliver'](officer,peer,'Bob');base['deliver'](peer,officer,'Member')
 assert not peer.globals().ForeverKoS.GetState()[1]
 assert 'Rejected:' in officer.globals().ForeverKoS.GetGrantDelivery('Member').status
 # Officer navigation must remain visible while viewing the Personal List.

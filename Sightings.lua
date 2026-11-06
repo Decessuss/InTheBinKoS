@@ -47,7 +47,7 @@ function api.ReceiveSighting(message,sender,isOfficer,isHistory)
     local stamp,name,map,x,y,spotter=message:match("^S\t(%d+)\t([^\t]+)\t(%d+)\t(%d+)\t(%d+)\t([^\t]+)$")
     stamp,map,x,y=tonumber(stamp),tonumber(map),tonumber(x),tonumber(y)
     if not stamp or not map or not x or not y then return end
-    name,spotter=decode(name),decode(spotter)
+    name,spotter=api.NormalizeName(decode(name)),api.NormalizeName(decode(spotter))
     if not api.NormalizeName(name) or not api.NormalizeName(spotter) then return end
     -- A member can speak only for themselves. Officers may relay saved history.
     if api.NameKey(spotter)~=api.NameKey(sender) and not isOfficer then return end
