@@ -4,6 +4,7 @@ local frame = CreateFrame("Frame")
 local guild, db, me
 local roster, queue, requests, seen = {}, {}, {}, {}
 local rosterGUIDs={}
+local accessDelivery={}
 local announced={}
 local debugEnabled=false
 local debugSeen={}
@@ -97,7 +98,7 @@ local function rebuild()
     if scope ~= guild then
         guild, db = scope, nil
         queue, seen, requests = {}, {}, {}
-        announced={}
+        announced={};accessDelivery={}
         lastRequest = -100
         if scope then
             ForeverKoSDB.guilds[scope] = ForeverKoSDB.guilds[scope] or {clock=0, records={}}
@@ -143,7 +144,11 @@ local function mergeGrant(r)
     db.clock=math.max(db.clock,r.rev)
     if not old or r.rev>old.rev or (r.rev==old.rev and r.editor>old.editor) then db.grants[k]=r end
 end
-function ForeverKoS.CanManageAccess() return db~=nil and isOfficer(me) end
+function ForeverKoS.CanAdminGuildAccess() return db~=nil and isOfficer(me) end
+function ForeverKoS.CanManageAccess() return ForeverKoS.CanAdminGuildAccess() end
+function ForeverKoS.GetGrantDelivery(name)
+    return accessDelivery[key(name)]
+end
 function ForeverKoS.SetEditor(name,enabled)
     if not db or not isOfficer(me) then say("Only guild officers can grant or revoke access."); return end
     name=full(name)
@@ -151,8 +156,8 @@ function ForeverKoS.SetEditor(name,enabled)
     local r={name=name,editor=me,rev=db.clock+1,deleted=not enabled}
     local message=packGrant(r)
     if #message>250 then say("Character name is too long to sync."); return end
-    mergeGrant(r); enqueue(message)
-    say((enabled and "Granted list editing to " or "Revoked named editing access for ") .. displayName(name)
+    mergeGrant(r); accessDelivery[key(name)]={rev=r.rev,status="Awaiting player confirmation"};enqueue(message)
+    say((enabled and "Queued list-editing grant for " or "Queued named-access revocation for ") .. displayName(name)
         .. (not enabled and ". Guild officer permissions still apply." or "."))
 end
 local function publish(target)
@@ -182,14 +187,32 @@ local function receive(prefix, message, channel, sender)
     if not senderKey or roster[senderKey] == nil or senderKey == key(me) then return end
     if ForeverKoS.ReceivePresence and ForeverKoS.ReceivePresence(message,sender,channel) then return end
     if ForeverKoS.ReceiveGuildTarget and ForeverKoS.ReceiveGuildTarget(message,sender,channel,permitted(sender),GetTime()-lastRequest<=1200) then return end
+    if message:sub(1,2)=="J\t" then
+        local revision,result=message:match("^J\t(%d+)\t([AR])$")
+        local pending=accessDelivery[senderKey]
+        if channel=="WHISPER" and pending and pending.rev==tonumber(revision) then
+            pending.status=result=="A" and "Confirmed by player" or "Rejected: officer not recognized on their client"
+            say(displayName(sender) .. ": " .. pending.status)
+        end
+        return
+    end
     if message:sub(1,2)=="G\t" then
-        if not isOfficer(sender) then return end
         local revision,editor,deleted,name=message:match("^G\t(%d+)\t([^\t]+)\t([01])\t([^\t]+)$")
         revision=tonumber(revision)
         if not revision or revision>1000000000000 then return end
         editor,name=decode(editor),decode(name)
         if not full(editor) or not full(name) then return end
+        if not isOfficer(sender) then
+            if key(name)==key(me) then enqueue("J\t" .. revision .. "\tR","WHISPER",sender) end
+            return
+        end
         mergeGrant({name=name,editor=editor,rev=revision,deleted=deleted=="1"})
+        if key(name)==key(me) then
+            local current=db.grants[key(name)]
+            if current.rev==revision and current.editor==editor and current.deleted==(deleted=="1") then
+                enqueue("J\t" .. revision .. "\tA","WHISPER",sender)
+            end
+        end
         return
     end
     if message:sub(1,2) == "S\t" then
@@ -384,6 +407,7 @@ SlashCmdList.FOREVERKOS = function(input)
         say(#names .. " active entries.")
         for _, n in ipairs(names) do say(clean(n)) end
     elseif command == "status" then
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or "0.5.8"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])
@@ -420,7 +444,7 @@ frame:SetScript("OnUpdate", function(_, delta)
         if item and db and C_ChatInfo then
             -- Recheck permissions at send time in case an officer was demoted.
             local cacheReply=item[2]=="WHISPER" and (item[1]:sub(1,2)=="C\t" or item[1]:sub(1,2)=="H\t" or item[1]:sub(1,2)=="U\t")
-            if item[1] == "Q" or item[1]=="P" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
+            if item[1] == "Q" or item[1]=="P" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2)=="J\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
         end
     end
     if refresh >= 300 then

@@ -25,12 +25,12 @@ m.execute('now=140')
 a.execute('now=140')
 base['packet'](m,'P','Alice-Realm')
 reply=base['sent'](m)
-assert any(msg=='V\t0.5.7' for _,msg,_,_ in reply)
+assert any(msg=='V\t0.5.8' for _,msg,_,_ in reply)
 for _,msg,ch,_ in reply:base['packet'](a,msg,'Member-Realm',ch)
 rows=a.globals().ForeverKoS.GetAddonUsers()
 member=next(row for row in rows.values() if row.name=='Member-Realm')
 assert not any(row.name=='Listener-Realm' for row in rows.values())
-assert member.version=='0.5.7' and member.detected and 'Member' in member.reason
+assert member.version=='0.5.8' and member.detected and member.access=='Member'
 
 assert len(m.globals().ForeverKoS.GetAddonUsers())==0
 m.globals().ForeverKoS.SetUsersMode(True)
@@ -69,12 +69,12 @@ print('PASS: version discovery, member replies, officer-only view, unknown/offli
 u=ns['a']
 u.execute("ForeverKoS.SetPersonalMode(false);ForeverKoS.SetGuildMode(false)")
 u.execute(Path('Presence.lua').read_text(encoding='utf-8'))
-u.execute('ForeverKoS.ReceivePresence("V\\t0.5.7","Member-Realm","GUILD")')
+u.execute('ForeverKoS.ReceivePresence("V\\t0.5.8","Member-Realm","GUILD")')
 u.execute(''' 
 local old=GetGuildRosterInfo
 GetGuildRosterInfo=function(i)local n,r,k=old(i);return n,r,k,nil,nil,nil,nil,nil,true end
 ForeverKoS.PresenceChanged()
-for _,f in ipairs(frames) do if rawget(f,"text")=="Addon Users" then f.scripts.OnClick() end end
+for _,f in ipairs(frames) do if rawget(f,"text")=="Users & Access" then f.scripts.OnClick() end end
 assert(ForeverKoS.IsUsersMode())
 local selectedRow
 for _,f in ipairs(frames) do

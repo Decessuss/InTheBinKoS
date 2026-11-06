@@ -60,12 +60,12 @@ local function createWindow()
     window.guildTab=button(window,"Guild List",20,-44,110,function() switchList(false) end)
     window.personalTab=button(window,"Personal List",135,-44,120,function() switchList(true) end)
     window.guildsTab=button(window,"KoS Guilds",260,-44,115,function() switchList(false,true) end)
-    window.usersTab=button(window,"Addon Users",380,-44,155,function() switchList(false,false,true) end)
+    window.usersTab=button(window,"Users & Access",380,-44,155,function() switchList(false,false,true) end)
     label(window,"Search",20,-107,"GameFontNormalSmall")
     window.search=editBox(window,78,-100,255,80)
     window.search:SetScript("OnTextChanged",function() page=1; if refresh then refresh() end end)
     window.sort=button(window,"Sort: Name",350,-100,185,function()
-        api.Settings().sortRecent=not api.Settings().sortRecent; page=1; refresh()
+        if usersMode() then api.ToggleAccessFilter() else api.Settings().sortRecent=not api.Settings().sortRecent end; page=1;selected=nil;refresh()
     end)
     for i=1,SIZE do
         local row=CreateFrame("Button",nil,window)
@@ -149,6 +149,8 @@ local function createWindow()
     window.alerts:SetScript("OnClick",function(self) api.SetAlerts(self:GetChecked() and true or false) end)
     window.footer=label(window,"Last seen = spotter position, not live enemy tracking • Esc to close",20,-614,"GameFontDisableSmall")
     window.accessLabel=label(window,"Grant list editing by character name (guild members only)",25,-613,"GameFontNormalSmall")
+    window.accessStatus=label(window,"",26,-668,"GameFontHighlightSmall")
+    window.accessStatus:SetWidth(505);window.accessStatus:SetJustifyH("LEFT")
     window.accessName=editBox(window,26,-636,225,100)
     window.grant=button(window,"Grant Access",265,-636,130,function() api.SetEditor(window.accessName:GetText(),true);refresh() end)
     window.revoke=button(window,"Revoke Access",400,-636,135,function() api.SetEditor(window.accessName:GetText(),false);refresh() end)
@@ -157,7 +159,7 @@ local function createWindow()
         local private=api.IsPersonalMode and api.IsPersonalMode()
         local guilds=guildMode()
         local users=usersMode()
-        window.usersTab:SetShown(api.CanManageAccess and api.CanManageAccess())
+        window.usersTab:Show()
         window.usersTab:SetEnabled(not users)
         window.guildTab:SetEnabled(private or guilds or users)
         window.guildsTab:SetEnabled(not guilds)
@@ -175,7 +177,7 @@ local function createWindow()
             end
             entries=filtered
         end
-        if api.Settings().sortRecent then
+        if not users and api.Settings().sortRecent then
             table.sort(entries,function(a,b)
                 local at=a.sighting and a.sighting.stamp or 0
                 local bt=b.sighting and b.sighting.stamp or 0
@@ -184,10 +186,11 @@ local function createWindow()
             end)
         end
         window.sort:SetText(api.Settings().sortRecent and "Sort: Last Seen" or "Sort: Name")
+        if users then window.sort:SetText(api.AccessFilterIsEditors() and "Show: KoS Editors" or "Show: Addon Users") end
         local pages=math.max(1,math.ceil(#entries/SIZE))
         page=math.max(1,math.min(page,pages))
         window.status:SetText((private and "PERSONAL — private, never shared" or (canEdit and "Editing enabled" or "View only — members can report sightings")) .. "  |  " .. #entries .. " / " .. total .. (guilds and " guilds" or " players"))
-        if users then window.status:SetText("Detected addon users — select to grant/revoke editing") end
+        if users then window.status:SetText("Users & Access — click Show to switch users/editors; select a player") end
         window.rank:SetText(api.GetRankLabel and api.GetRankLabel() or "Rank: Loading...")
         local exists=false
         for _, r in ipairs(entries) do if r.name==selected then exists=true end end
@@ -200,14 +203,14 @@ local function createWindow()
                 local s=r.sighting
                 row.seen:SetText(private and "Private reminder — not shared with your guild" or (s and (api.SightingZone(s) .. " — " .. api.SightingAge(s) .. " — " .. api.DisplayName(s.spotter) .. (guilds and (" — " .. api.DisplayName(s.name)) or "")) or "Not seen yet"))
                 if users then
-                    row.seen:SetText("Addon detected — select to grant or revoke editing")
+                    row.seen:SetText((r.detail or "Addon detected") .. (r.delivery and (" — " .. r.delivery.status) or ""))
                 end
                 row:Show()
             else row:Hide() end
         end
         window.empty:SetShown(#entries==0)
         window.empty:SetText(total==0 and (private and "Your private avoid list is empty. Add a target or enter a name below." or (guilds and "No enemy guilds listed. Enter a guild or use Target Guild below." or "Your KoS list is empty. Add a target or enter a player below.")) or "No matching players. Try a different search.")
-        if users then window.empty:SetText("No addon users detected yet. Try Refresh Users in a few seconds.") end
+        if users then window.empty:SetText("No matching users. Try Refresh Users or switch Show: KoS Editors.") end
         window.page:SetText("Page " .. page .. " / " .. pages)
         window.prev:SetEnabled(page>1); window.next:SetEnabled(page<pages)
         window.add:SetEnabled(canEdit); window.target:SetEnabled(canEdit)
@@ -221,10 +224,15 @@ local function createWindow()
         window.alertsLabel:SetText(private and "Personal reminders" or "Sighting alerts")
         window.footer:SetText(private and "Private avoid list • Same-faction sightings and party/raid reminders" or "Last seen = spotter position, not live enemy tracking • Esc to close")
         if users then window.footer:SetText("No response does not prove absence • Presence is not an access grant") end
-        local canManage=api.CanManageAccess and api.CanManageAccess()
+        local canManage=users and api.CanAdminGuildAccess() or (api.CanManageAccess and api.CanManageAccess())
         for _,control in ipairs({window.accessLabel,window.accessName,window.grant,window.revoke}) do control:SetShown(canManage and true or false) end
-        window.footer:ClearAllPoints(); window.footer:SetPoint("TOPLEFT",20,canManage and -680 or -614)
-        window:SetSize(560,canManage and 708 or (canEdit and 642 or 530))
+        local delivery=api.GetGrantDelivery and api.GetGrantDelivery(window.accessName:GetText())
+        window.accessStatus:SetShown(canManage and true or false)
+        window.accessStatus:SetText(delivery and delivery.status or "Select a player above, then Grant Access / Revoke Access")
+        window.grant:SetEnabled(canManage and window.accessName:GetText()~="")
+        window.revoke:SetEnabled(canManage and window.accessName:GetText()~="")
+        window.footer:ClearAllPoints(); window.footer:SetPoint("TOPLEFT",20,canManage and -697 or -614)
+        window:SetSize(560,canManage and 725 or (canEdit and 642 or 530))
         window.art:SetSize(canEdit and 510 or 470,canEdit and 510 or 470)
         local checkboxY=canEdit and -573 or -484
         window.sound:ClearAllPoints(); window.sound:SetPoint("TOPLEFT",18,checkboxY)

@@ -219,3 +219,12 @@ Guild rules sync automatically with your own guild and stay separate from other 
 Officers can open **Addon Users** to see detected online guild members with the addon, their version and current editing access. Select a player, then click **Grant Access** or **Revoke Access**. Grants remain officer-only; delegated editors cannot grant access. Revoking a named grant does not remove rank-based permissions.
 
 Detection runs automatically in the background. Nobody needs to type commands or submit reports. **Refresh Users** refreshes detection (30-second cooldown). Version 0.5.6+ supports this detection. Offline, outdated and non-responding clients are omitted; absence from this list does not prove the addon is not installed. The view is officer-only, session-only and resets on guild changes. Detection never grants access by itself.
+
+
+### 0.5.8: Users & Access and grant confirmation
+
+The **Users & Access** button is always visible at the top, including from Personal List. Data and controls remain officer-only; clicking without recognized officer access gives a permission diagnostic instead of silently hiding the entry point.
+
+Click **Show: Addon Users** to switch to **Show: KoS Editors**. Addon Users shows detected online users. KoS Editors includes recognized officers and named grantees in the loaded guild roster, including offline users and users without a detected addon. Rows explicitly show **KoS editing: YES/NO**, role, detected version and online/offline state. Select a row to fill Grant Access / Revoke Access.
+
+New grants and revocations show **Awaiting player confirmation**, **Confirmed by player**, or **Rejected: officer not recognized on their client**. The target must be online and using 0.5.8+ for confirmations; older clients can still accept compatible grants but will not acknowledge them. A queued/local grant is not proof the target accepted it. Clients continue to validate the sending officer themselves; there is no self-asserted officer bypass. If rejected, collect `/kos status` from the sending officer and affected recipient. Existing rank-based access is never revoked by removing a named grant.

@@ -2,6 +2,7 @@
 local api=ForeverKoS
 local scope,users,lastAnnounce,lastQuery=nil,{},-1000,-1000
 local elapsed,mode=0,false
+local editorsOnly=false
 local function context()
     local db,me=api.SightingContext()
     if db~=scope then scope=db;users={};lastAnnounce=-1000;lastQuery=-1000 end
@@ -9,8 +10,8 @@ local function context()
 end
 local function version()
     local query=C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
-    local value=query and query("InTheBinKoS","Version") or "0.5.7"
-    return type(value)=="string" and value:match("^%d+%.%d+%.%d+[%w%.%-]*$") and value or "0.5.7"
+    local value=query and query("InTheBinKoS","Version") or "0.5.8"
+    return type(value)=="string" and value:match("^%d+%.%d+%.%d+[%w%.%-]*$") and value or "0.5.8"
 end
 local function announce()
     local db,me=context();if not db or not me or GetTime()-lastAnnounce<30 then return end
@@ -34,26 +35,29 @@ function api.ReceivePresence(message,sender,channel)
     return true
 end
 function api.RequestAddonUsers()
-    if not api.CanManageAccess() then return end
+    if not api.CanAdminGuildAccess() then return end
     local db=context();if not db or GetTime()-lastQuery<30 then return end
     lastQuery=GetTime()
     announce();api.QueuePresence("P")
     if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
 end
 function api.GetAddonUsers()
-    if not api.CanManageAccess() then return {} end
+    if not api.CanAdminGuildAccess() then return {} end
     local db,me=context();if not db then return {} end
     local rows={}
     for i=1,GetNumGuildMembers() do
         local name,rank,_,_,_,_,_,_,online=GetGuildRosterInfo(i)
         name=api.NormalizeName(name)
-        if name and (online==true or online==1 or api.NameKey(name)==api.NameKey(me)) then
+        if name and (editorsOnly or online==true or online==1 or api.NameKey(name)==api.NameKey(me)) then
             local info=users[api.NameKey(name)]
             if api.NameKey(name)==api.NameKey(me) then info={version=version(),stamp=GetTime()} end
             local detected=info and GetTime()-info.stamp<=660
-            if detected then rows[#rows+1]={name=name,editor=name,version=info.version,
-                reason="Addon " .. info.version .. " — " .. api.SharedAccessLabel(name),
-                presence=true,rank=rank,detected=true} end
+            local access=api.SharedAccessLabel(name)
+            if (editorsOnly and access~="Member") or (not editorsOnly and detected) then rows[#rows+1]={name=name,editor=name,version=detected and info.version or nil,
+                reason="KoS editing: " .. (access~="Member" and ("YES — " .. access) or "NO"),
+                detail=(detected and ("Addon " .. info.version) or "Addon not detected") .. ((online==true or online==1) and " — Online" or " — Offline"),
+                delivery=api.GetGrantDelivery(name),
+                presence=true,rank=rank,detected=not not detected,access=access} end
         end
     end
     table.sort(rows,function(a,b)
@@ -62,12 +66,17 @@ function api.GetAddonUsers()
     end)
     return rows
 end
+function api.AccessFilterIsEditors() return editorsOnly end
+function api.ToggleAccessFilter() editorsOnly=not editorsOnly end
 function api.IsUsersMode()
-    if mode and not api.CanManageAccess() then mode=false end
+    if mode and not api.CanAdminGuildAccess() then mode=false end
     return mode
 end
 function api.SetUsersMode(value)
-    mode=value and api.CanManageAccess() or false
+    if value and not api.CanAdminGuildAccess() then
+        print("|cffff5555<in the bin> KoS List:|r Officer access is not recognized. Run /kos status for permission diagnostics.")
+    end
+    mode=value and api.CanAdminGuildAccess() or false
     if mode then
         api.SetPersonalMode(false);api.SetGuildMode(false)
         api.RequestAddonUsers()
