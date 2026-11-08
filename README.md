@@ -142,3 +142,8 @@ Open KoS Guilds, target an opposing-faction player, and click Target's Guild. Th
 ### 0.5.12: Guild alert throttle
 
 Guild-wide KoS alerts now share a 60-second cooldown per enemy guild across local and received sightings. Chat, sound and aura notifications are throttled together; last-known locations continue updating. Different enemy guilds and individually listed players retain independent alerts.
+
+
+### 0.5.13: Login update notification
+
+On login, the addon automatically requests versions from online guild members. If a newer stable release is detected, a chat notice directs the player to update through CurseForge or WowUp. The notice appears once per session, works for ordinary members, and does not open a popup or play a sound. Version checks use guild addon messages, not a direct connection to CurseForge; a newer version must be running on an online guild member to be detected.

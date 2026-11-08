@@ -3,6 +3,9 @@ local api=ForeverKoS
 local scope,users,lastAnnounce,lastQuery=nil,{},-1000,-1000
 local elapsed,mode=0,false
 local editorsOnly=false
+local updateNotified=false
+local loginQueried=false
+local lastVersionReply=-1000
 local function context()
     local db,me=api.SightingContext()
     if db~=scope then scope=db;users={};lastAnnounce=-1000;lastQuery=-1000 end
@@ -13,25 +16,58 @@ local function version()
     local value=query and query("InTheBinKoS","Version") or "0.5.8"
     return type(value)=="string" and value:match("^%d+%.%d+%.%d+[%w%.%-]*$") and value or "0.5.8"
 end
-local function announce()
-    local db,me=context();if not db or not me or GetTime()-lastAnnounce<30 then return end
+local function newerRelease(remote,installed)
+    -- Compare numeric components: 0.5.10 is newer than 0.5.9.
+    -- Do not suggest moving from a stable release to a prerelease.
+    local a,b,c=remote:match("^(%d+)%.(%d+)%.(%d+)$")
+    local x,y,z,suffix=installed:match("^(%d+)%.(%d+)%.(%d+)(.*)$")
+    if not a or not x then return false end
+    a,b,c,x,y,z=tonumber(a),tonumber(b),tonumber(c),tonumber(x),tonumber(y),tonumber(z)
+    if a~=x then return a>x end
+    if b~=y then return b>y end
+    if c~=z then return c>z end
+    return suffix~=""
+end
+local function announce(force)
+    local db,me=context();if not db or not me or (not force and GetTime()-lastAnnounce<30) then return end
     lastAnnounce=GetTime()
     users[api.NameKey(me)]={version=version(),stamp=GetTime()}
     api.QueuePresence("V\t" .. version())
 end
-function api.PresenceChanged() announce() end
+function api.PresenceChanged()
+    announce()
+    -- Runs on login, or the first roster update if guild data was not ready.
+    local db,me=context()
+    if db and me and not loginQueried then
+        loginQueried=true
+        api.QueuePresence("P")
+    end
+end
 function api.PresenceTick(delta)
     elapsed=elapsed+delta
     if elapsed>=300 then elapsed=0;announce() end
 end
 function api.ReceivePresence(message,sender,channel)
-    if message=="P" then announce();return true end
+    if message=="P" then
+        if GetTime()-lastVersionReply>=30 then
+            lastVersionReply=GetTime();announce(true)
+        end
+        return true
+    end
     if message:sub(1,2)~="V\t" then return false end
     local value=message:match("^V\t(%d+%.%d+%.%d+[%w%.%-]*)$")
     if not value or #value>32 then return true end
     local db=context()
     local k=api.NameKey(sender)
-    if db and k then users[k]={version=value,stamp=GetTime()} end
+    if db and k then
+        users[k]={version=value,stamp=GetTime()}
+        local installed=version()
+        if not updateNotified and newerRelease(value,installed) then
+            updateNotified=true
+            print("|cffffb45b<in the bin> KoS List:|r Update available: " .. value .. " detected from a guild member"
+                .. " (you have " .. installed .. "). Update <in the bin> KoS List through CurseForge or WowUp.")
+        end
+    end
     return true
 end
 function api.RequestAddonUsers()
