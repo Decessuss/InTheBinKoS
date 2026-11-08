@@ -1,7 +1,7 @@
 import runpy
 ns=runpy.run_path('tests/test_kos.py')
 clients=[ns['client']('Bob'),ns['client']('Member')]
-for r,name in zip(clients,['Oven Baked','Decessuss Reaper']):
+for r,name in zip(clients,['Oven Baked','Member Tester']):
     r.globals().testCharacter=name
     r.execute('''
 guildName="in the bin"
@@ -10,24 +10,24 @@ function UnitFullName(unit)
  local v=units[unit];if not v then return end
  return v.name:match("^(%S+) (.+)$")
 end
-members={{"Oven Baked-CAMWOWAU1Realm2PvP",1},{"Decessuss Reaper-Another Realm",4}}
+members={{"Oven Baked-CAMWOWAU1Realm2PvP",1},{"Member Tester-Another Realm",4}}
 testFrame.OnEvent(testFrame,"GUILD_ROSTER_UPDATE")
 ''')
     ns['sent'](r)
 a,b=clients
 assert a.globals().ForeverKoS.CanManageAccess()
 assert not b.globals().ForeverKoS.GetState()[1]
-a.globals().ForeverKoS.SetEditor('Decessuss Reaper',True)
+a.globals().ForeverKoS.SetEditor('Member Tester',True)
 ns['deliver'](a,b,'Oven Baked-DifferentRealm')
 assert b.globals().ForeverKoS.GetState()[1]
-ns['deliver'](b,a,'Decessuss Reaper-YetAnotherRealm')
-assert a.globals().ForeverKoS.GetGrantDelivery('Decessuss Reaper').status=='Confirmed by recipient addon'
-a.globals().ForeverKoS.SetEditor('Decessuss Reaper-OldRealm',False)
+ns['deliver'](b,a,'Member Tester-YetAnotherRealm')
+assert a.globals().ForeverKoS.GetGrantDelivery('Member Tester').status=='Confirmed by recipient addon'
+a.globals().ForeverKoS.SetEditor('Member Tester-OldRealm',False)
 ns['deliver'](a,b,'Oven Baked')
 assert not b.globals().ForeverKoS.GetState()[1]
-ns['packet'](b,'G\t999\tStranger\t0\tDecessuss Reaper','Stranger-Realm')
+ns['packet'](b,'G\t999\tStranger\t0\tMember Tester','Stranger-Realm')
 assert not b.globals().ForeverKoS.GetState()[1]
-assert b.globals().ForeverKoS.NormalizeName('  Decessuss   Reaper-CAMWOWAU1Realm2PvP')=='Decessuss Reaper'
+assert b.globals().ForeverKoS.NormalizeName('  Member   Tester-CAMWOWAU1Realm2PvP')=='Member Tester'
 print('PASS: exact officer/member names with mixed realm formats; grant, automatic acknowledgement, revocation and outsider rejection.')
 
 # Upgrade a saved guild list without losing records or revocations.

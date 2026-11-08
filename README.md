@@ -137,3 +137,8 @@ Adds member-accessible /kos accessdebug to inspect roster identity and trace inc
 ### 0.5.11: Add a targeted player's guild
 
 Open KoS Guilds, target an opposing-faction player, and click Target's Guild. This fills the guild name without saving immediately. Enter an optional reason and click Add / Save to confirm. Officers and granted editors can save; the entry syncs through the existing guild KoS system. Guildless, unavailable, non-player and same-faction targets show a message instead.
+
+
+### 0.5.12: Guild alert throttle
+
+Guild-wide KoS alerts now share a 60-second cooldown per enemy guild across local and received sightings. Chat, sound and aura notifications are throttled together; last-known locations continue updating. Different enemy guilds and individually listed players retain independent alerts.

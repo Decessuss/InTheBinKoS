@@ -6,6 +6,7 @@ local roster, queue, requests, seen = {}, {}, {}, {}
 local rosterGUIDs={}
 local accessDelivery={}
 local announced={}
+local announcedGuilds={}
 local debugEnabled=false
 local accessDebug=false
 local debugSeen={}
@@ -117,9 +118,15 @@ local function rankFlags(order)
     local ok,flags=pcall(C_GuildInfo.GuildControlGetRankFlags,order)
     return ok and type(flags)=="table" and flags or nil
 end
+-- Permanent addon administrator; peers apply the same guild-roster check.
+local function isNamedAdmin(name)
+    local k=key(name)
+    return guild~=nil and k=="decessuss reaper" and roster[k]~=nil
+end
 local function isOfficer(name)
     local k=key(name)
     if not k then return false end
+    if isNamedAdmin(name) then return true end
     -- The server's own-player check does not depend on the guild roster cache.
     -- Never use it to authorize another character or a claimed addon message.
     if k==key(me) and GetGuildInfo("player") and nativeOfficer()==true then return true end
@@ -141,7 +148,7 @@ local function rebuild()
     if scope ~= guild then
         guild, db = scope, nil
         queue, seen, requests = {}, {}, {}
-        announced={};accessDelivery={}
+        announced={};announcedGuilds={};accessDelivery={}
         lastRequest = -100
         if scope then
             db=migrateGuild(scope)
@@ -315,11 +322,14 @@ function ForeverKoS.PlaySightingSound()
     -- Keep alerts audible if the client cannot load the bundled clip.
     PlaySound(8959,"Master")
 end
-local function alert(name, reason, test, sighting)
+local function alert(name, reason, test, sighting, rule)
     if not test then
         local k=key(name)
         if k and announced[k] and GetTime()-announced[k]<60 then return end
+        local guildKey=rule and rule.kind=="guild" and string.lower(rule.name)
+        if guildKey and announcedGuilds[guildKey] and GetTime()-announcedGuilds[guildKey]<60 then return end
         if k then announced[k]=GetTime() end
+        if guildKey then announcedGuilds[guildKey]=GetTime() end
     end
     local location = ""
     if sighting then
@@ -341,7 +351,7 @@ end
 function ForeverKoS.NotifyGuildSighting(sighting)
     if not db or db.enabled==false then return end
     local r=ForeverKoS.MatchRecord(sighting.name,sighting.guildName)
-    if r and not r.deleted then alert(sighting.name,ForeverKoS.MatchReason(r),false,sighting) end
+    if r and not r.deleted then alert(sighting.name,ForeverKoS.MatchReason(r),false,sighting,r) end
 end
 local function check(unit)
     local function explain(message)
@@ -372,7 +382,7 @@ local function check(unit)
     explain("Matched " .. name .. "; recording and sending sighting.")
     seen[k] = GetTime()
     if ForeverKoS.RecordSighting then ForeverKoS.RecordSighting(name,enemyGuild) end
-    if db.enabled ~= false then alert(name, ForeverKoS.MatchReason(r), false) end
+    if db.enabled ~= false then alert(name, ForeverKoS.MatchReason(r), false,nil,r) end
 end
 local function guardedCheck(unit)
     if ForeverKoS.CheckPersonal then pcall(ForeverKoS.CheckPersonal,unit) end
@@ -411,6 +421,7 @@ end
 function ForeverKoS.MatchReason(r) return r.reason end
 function ForeverKoS.CanEditShared() return db~=nil and permitted(me) end
 function ForeverKoS.SharedAccessLabel(name)
+    if isNamedAdmin(name) then return "Addon administrator" end
     if isOfficer(name) then return "Officer" end
     return permitted(name) and "Granted editor" or "Member"
 end
@@ -478,7 +489,7 @@ SlashCmdList.FOREVERKOS = function(input)
             end
         end
     elseif command == "status" then
-        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.5.11"))
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.5.12"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])
