@@ -245,3 +245,6 @@ All participating guild members should update for the new request and sighting m
 - Fixed incorrect icon cropping that could display a murloc-like image instead of the intended skull, cross or other raid symbol.
 - Nameplate markers and nearby-panel icons now use the client marker-artwork helper, with corrected four-row texture coordinates as a fallback.
 - Markers remain local visual indicators. No automatic protected raid-target assignment is used.
+### 0.5.16: Guild selection error fix
+
+Fixed a Lua error when selecting a KoS guild without a recorded sighting. Pin Last Seen stays disabled until a valid location is available. Guild selections no longer fall back to character sightings with the same name.

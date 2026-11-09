@@ -8,7 +8,10 @@ local SIZE = 7
 local function usersMode() return api.IsUsersMode and api.IsUsersMode() end
 local function guildMode() return api.IsGuildMode and api.IsGuildMode() and not api.IsPersonalMode() end
 local function entryName(name) return guildMode() and name or api.DisplayName(name) end
-local function sightingFor(name) return guildMode() and api.GetGuildSighting(name) or (not guildMode() and api.GetSighting(name)) end
+local function sightingFor(name)
+    if guildMode() then return api.GetGuildSighting(name) end
+    return api.GetSighting(name)
+end
 local function pin(name) local s=name and sightingFor(name);if s then api.PinSighting(s.name) end end
 local function label(parent, text, x, y, size)
     local f = parent:CreateFontString(nil,"OVERLAY",size or "GameFontNormal")
@@ -280,7 +283,7 @@ local function createWindow()
         window.soundLabel:ClearAllPoints(); window.soundLabel:SetPoint("TOPLEFT",48,checkboxY-7)
         window.alertsLabel:ClearAllPoints(); window.alertsLabel:SetPoint("TOPLEFT",155,checkboxY-7)
         local sighting=selected and sightingFor(selected)
-        window.pin:SetEnabled(sighting~=nil and sighting.map~=0)
+        window.pin:SetEnabled(type(sighting)=="table" and type(sighting.map)=="number" and sighting.map~=0)
         window.sound:SetChecked(sound); window.alerts:SetChecked(alerts)
     end
     window:SetScript("OnShow",function() refresh() end)

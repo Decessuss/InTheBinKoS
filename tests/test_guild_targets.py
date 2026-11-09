@@ -86,6 +86,21 @@ assert(ForeverKoSWindow.name:GetText()=="Target-Guild People")
 assert(not ForeverKoS.MatchRecord("Target Person","Target-Guild People"))
 ForeverKoSWindow.add.scripts.OnClick()
 assert(ForeverKoS.MatchRecord("Target Person","Target-Guild People").reason=="Target test")
+-- Selecting an unseen guild must disable pinning, without falling back to a player sighting.
+ForeverKoSWindow.pin.SetEnabled=function(self,value)self.testEnabled=value end
+local oldSighting=ForeverKoS.GetSighting
+ForeverKoS.GetSighting=function(name)
+ if name=="Target-Guild People" then return {name=name,map=1944} end
+ return oldSighting(name)
+end
+for _,f in ipairs(frames) do
+ if type(rawget(f,"record"))=="table" and f.record.name=="Target-Guild People" then
+  f.scripts.OnClick(f,"LeftButton")
+  assert(ForeverKoSWindow.pin.testEnabled==false)
+  f.scripts.OnClick(f,"RightButton")
+ end
+end
+ForeverKoS.GetSighting=oldSighting
 units.target.guild=nil
 assert(ForeverKoS.GetTargetGuildName()==nil)
 units.target.guild="Friendly Guild";units.target.faction="Alliance"
