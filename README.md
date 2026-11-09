@@ -159,3 +159,8 @@ On login, the addon automatically requests versions from online guild members. I
 - Fixed repeated access confirmations caused by routine list syncs.
 
 All participating guild members should update for the new request and sighting messages. This remains a beta; report in-game layout or compatibility issues.
+### 0.5.15: Correct target-marker artwork
+
+- Fixed incorrect icon cropping that could display a murloc-like image instead of the intended skull, cross or other raid symbol.
+- Nameplate markers and nearby-panel icons now use the client marker-artwork helper, with corrected four-row texture coordinates as a fallback.
+- Markers remain local visual indicators. No automatic protected raid-target assignment is used.

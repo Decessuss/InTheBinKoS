@@ -5,6 +5,12 @@ local tracked,textures={},setmetatable({},{__mode="k"})
 local assigned,owners,identities={},{},{}
 local order={8,7,6,5,4,3,2,1}
 local elapsed=0
+function api.SetMarkerArtwork(texture,index)
+    if SetRaidTargetIconTexture then SetRaidTargetIconTexture(texture,index);return end
+    local i=index-1
+    local column,row=i%4,math.floor(i/4)
+    texture:SetTexCoord(column/4,(column+1)/4,row/4,(row+1)/4)
+end
 local function release(unit)
     local slot=assigned[unit]
     if slot then owners[slot]=nil end
@@ -46,9 +52,7 @@ local function update(unit)
         icon:SetPoint("BOTTOM",plate,"TOP",0,8)
         textures[plate]=icon
     end
-    local index=order[assigned[unit] or 1]-1
-    local column,row=index%4,math.floor(index/4)
-    textures[plate]:SetTexCoord(column/4,(column+1)/4,row/2,(row+1)/2)
+    api.SetMarkerArtwork(textures[plate],order[assigned[unit] or 1])
     -- More than eight visible matches retain a red skull rather than disappearing.
     textures[plate]:SetVertexColor(1,assigned[unit] and 1 or 0.3,assigned[unit] and 1 or 0.3)
     textures[plate]:Show()

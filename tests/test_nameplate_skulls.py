@@ -5,6 +5,7 @@ r=ns['client']('Alice');base=ns['base']
 r.globals().ForeverKoS.EditGuildTarget('Enemy Guild','Test',False)
 r.execute('''
 icons={};plates={}
+function SetRaidTarget()error("Automatic protected marking must never be called")end
 function newPlate()
  local plate={}
  function plate:CreateTexture()
@@ -29,6 +30,7 @@ units.nameplate2={name="Second Enemy",faction="Horde",guild="Enemy Guild"}
 plates.nameplate2=newPlate()
 skullFrame.OnEvent(skullFrame,"NAME_PLATE_UNIT_ADDED","nameplate2")
 assert(icons[1].coords[1]==0.75 and icons[2].coords[1]==0.5)
+assert(icons[1].coords[3]==0.25 and icons[1].coords[4]==0.5)
 skullFrame.OnUpdate(skullFrame,0.2)
 assert(icons[2].coords[1]==0.5)
 skullFrame.OnEvent(skullFrame,"NAME_PLATE_UNIT_REMOVED","nameplate2")
@@ -49,4 +51,15 @@ local entries=ForeverKoS.GetNearbyKoS()
 assert(#entries==1 and entries[1].name=="Enemy Person" and entries[1].marker==8)
 units.nameplate1.faction="Alliance"
 assert(#ForeverKoS.GetNearbyKoS()==0)
+local texture={SetTexCoord=function(self,l,r,t,b)self.coords={l,r,t,b}end}
+for index=1,8 do
+ ForeverKoS.SetMarkerArtwork(texture,index)
+ assert(texture.coords[2]-texture.coords[1]==0.25)
+ assert(texture.coords[4]-texture.coords[3]==0.25)
+end
+local delegated=false
+SetRaidTargetIconTexture=function(t,index)delegated=t==texture and index==8 end
+ForeverKoS.SetMarkerArtwork(texture,8)
+assert(delegated)
 ''')
+assert 'pcall(SetRaidTarget,' not in Path('Nameplates.lua').read_text()

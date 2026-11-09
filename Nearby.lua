@@ -32,9 +32,14 @@ local function refresh()
         local r=not s.collapsed and entries[offset+i]
         row.record=r;row:SetShown(r~=nil)
         if r then
-            local index=r.marker-1;local col,line=index%4,math.floor(index/4)
-            row.icon:SetTexCoord(col/4,(col+1)/4,line/2,(line+1)/2)
-            row.icon:SetVertexColor(1,r.slot<=8 and 1 or 0.3,r.slot<=8 and 1 or 0.3)
+            row.icon:SetShown(r.marker~=nil)
+            if r.marker then
+                if api.SetMarkerArtwork then api.SetMarkerArtwork(row.icon,r.marker)
+                else
+                    local index=r.marker-1;local col,line=index%4,math.floor(index/4)
+                    row.icon:SetTexCoord(col/4,(col+1)/4,line/4,(line+1)/4)
+                end
+            end
             row.name:SetText(r.name)
             local color=r.classToken and ((CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[r.classToken]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[r.classToken]))
             row.name:SetTextColor(color and color.r or 1,color and color.g or 1,color and color.b or 1)
