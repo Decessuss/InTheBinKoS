@@ -1,5 +1,8 @@
 local api = ForeverKoS
 local window, minimap, refresh
+local settingsMode=false
+local requestsMode=false
+local settingsHidden
 local page, selected, rows = 1, nil, {}
 local SIZE = 7
 local function usersMode() return api.IsUsersMode and api.IsUsersMode() end
@@ -50,6 +53,8 @@ local function createWindow()
     window.rank=label(window,"",300,-24,"GameFontHighlightSmall")
     window.rank:SetWidth(210); window.rank:SetJustifyH("RIGHT")
     local function switchList(value,guilds,users)
+        settingsMode=false
+        requestsMode=false
         if api.SetPersonalMode then api.SetPersonalMode(value) end
         if api.SetGuildMode then api.SetGuildMode(guilds) end
         if api.SetUsersMode then api.SetUsersMode(users) end
@@ -57,11 +62,13 @@ local function createWindow()
         window.name:SetText("");window.reason:SetText("");window.search:SetText("")
         refresh()
     end
-    window.guildTab=button(window,"Guild List",20,-44,110,function() switchList(false) end)
-    window.personalTab=button(window,"Personal List",135,-44,120,function() switchList(true) end)
-    window.guildsTab=button(window,"KoS Guilds",260,-44,115,function() switchList(false,true) end)
-    window.usersTab=button(window,"Users & Access",380,-44,155,function() switchList(false,false,true) end)
-    label(window,"Search",20,-107,"GameFontNormalSmall")
+    window.guildTab=button(window,"Guild List",20,-44,78,function() switchList(false) end)
+    window.personalTab=button(window,"Personal List",103,-44,92,function() switchList(true) end)
+    window.guildsTab=button(window,"KoS Guilds",200,-44,90,function() switchList(false,true) end)
+    window.usersTab=button(window,"Users & Access",295,-44,110,function() switchList(false,false,true) end)
+    window.requests=button(window,"Requests",410,-44,65,function()api.ShowRequests()end)
+    window.settings=button(window,"Settings",480,-44,60,function()api.ShowSettings()end)
+    window.searchLabel=label(window,"Search",20,-107,"GameFontNormalSmall")
     window.search=editBox(window,78,-100,255,80)
     window.search:SetScript("OnTextChanged",function() page=1; if refresh then refresh() end end)
     window.sort=button(window,"Sort: Name",350,-100,185,function()
@@ -162,6 +169,32 @@ local function createWindow()
     window.grant=button(window,"Grant Access",265,-636,130,function() api.SetEditor(window.accessName:GetText(),true);refresh() end)
     window.revoke=button(window,"Revoke Access",400,-636,135,function() api.SetEditor(window.accessName:GetText(),false);refresh() end)
     refresh=function()
+        if (settingsMode and api.CreateSettingsPage) or (requestsMode and api.CreateRequestsPage) then
+            if not settingsHidden then
+                settingsHidden={}
+                for _,key in ipairs({"status","searchLabel","search","sort","empty","prev","page","next","nameLabel","reasonLabel","name","reason","add","target","remove","test","sync","scan","pin","sound","soundLabel","alerts","alertsLabel","footer","accessLabel","accessName","accessStatus","grant","revoke"}) do
+                    local control=window[key]
+                    if control then settingsHidden[control]=control:IsShown();control:Hide() end
+                end
+                for _,row in ipairs(rows) do settingsHidden[row]=row:IsShown();row:Hide() end
+            end
+            for _,tab in ipairs({window.guildTab,window.personalTab,window.guildsTab,window.usersTab}) do tab:SetEnabled(true) end
+            window.settings:SetEnabled(not settingsMode)
+            window.requests:SetEnabled(not requestsMode)
+            window:SetSize(560,requestsMode and 730 or 530)
+            window.rank:SetText(api.GetRankLabel())
+            if api.CreateSettingsPage then api.CreateSettingsPage(window):SetShown(settingsMode) end
+            if api.CreateRequestsPage then api.CreateRequestsPage(window):SetShown(requestsMode);if requestsMode then api.RefreshRequests() end end
+            return
+        end
+        if settingsHidden then
+            for control,shown in pairs(settingsHidden) do control:SetShown(shown) end
+            settingsHidden=nil
+        end
+        if api.CreateSettingsPage then api.CreateSettingsPage(window):Hide() end
+        if api.CreateRequestsPage then api.CreateRequestsPage(window):Hide() end
+        window.settings:SetEnabled(true)
+        window.requests:SetEnabled(true)
         local entries, canEdit, scope, sound, alerts=api.GetState()
         local private=api.IsPersonalMode and api.IsPersonalMode()
         local guilds=guildMode()
@@ -258,6 +291,16 @@ local function createWindow()
     end)
     window:Hide()
 end
+function api.ShowSettings()
+    if not window then createWindow() end
+    settingsMode=true;requestsMode=false
+    window:Show();refresh()
+end
+function api.ShowRequests()
+    if not window then createWindow() end
+    requestsMode=true;settingsMode=false
+    window:Show();refresh()
+end
 function api.ToggleUI()
     if not window then createWindow() end
     if window:IsShown() then window:Hide() else window:Show() end
@@ -265,7 +308,7 @@ end
 local function createMinimap()
     minimap=CreateFrame("Button","ForeverKoSMinimapButton",Minimap)
     minimap:SetSize(32,32); minimap:SetFrameStrata("MEDIUM"); minimap:SetFrameLevel(8)
-    minimap:RegisterForClicks("LeftButtonUp"); minimap:RegisterForDrag("LeftButton")
+    minimap:RegisterForClicks("LeftButtonUp","RightButtonUp"); minimap:RegisterForDrag("LeftButton")
     local icon=minimap:CreateTexture(nil,"BACKGROUND")
     icon:SetTexture("Interface\\Icons\\Ability_DualWield"); icon:SetSize(20,20); icon:SetPoint("CENTER")
     local rim=minimap:CreateTexture(nil,"OVERLAY")
@@ -277,7 +320,12 @@ local function createMinimap()
         minimap:SetPoint("CENTER",Minimap,"CENTER",math.cos(angle)*(Minimap:GetWidth()/2+8),math.sin(angle)*(Minimap:GetHeight()/2+8))
     end
     local dragged=false
-    minimap:SetScript("OnClick",function() if not dragged then api.ToggleUI() end; dragged=false end)
+    minimap:SetScript("OnClick",function(_,button)
+        if not dragged then
+            if button=="RightButton" and api.ToggleNearby then api.ToggleNearby() else api.ToggleUI() end
+        end
+        dragged=false
+    end)
     minimap:SetScript("OnDragStart",function(self)
         dragged=true
         self:SetScript("OnUpdate",function()
@@ -293,6 +341,7 @@ local function createMinimap()
     minimap:SetScript("OnEnter",function(self)
         GameTooltip:SetOwner(self,"ANCHOR_LEFT"); GameTooltip:SetText("<in the bin> KoS List")
         GameTooltip:AddLine("Click to open / close",1,1,1)
+        GameTooltip:AddLine("Right-click to show / hide Nearby KoS",1,0.7,0.3)
         GameTooltip:AddLine("Drag to move around the minimap",0.7,0.7,0.7); GameTooltip:Show()
     end)
     minimap:SetScript("OnLeave",function() GameTooltip:Hide() end)

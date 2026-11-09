@@ -147,3 +147,15 @@ Guild-wide KoS alerts now share a 60-second cooldown per enemy guild across loca
 ### 0.5.13: Login update notification
 
 On login, the addon automatically requests versions from online guild members. If a newer stable release is detected, a chat notice directs the player to update through CurseForge or WowUp. The notice appears once per session, works for ordinary members, and does not open a popup or play a sound. Version checks use guild addon messages, not a direct connection to CurseForge; a newer version must be running on an online guild member to be detected.
+
+### 0.5.14: Requests, nearby panel and local markers
+
+- Added a Requests tab for members to suggest a player with a mandatory reason. Officers and addon administrators can approve or decline; approved players join the shared KoS list. Members see their own requests and statuses. Duplicate pending requests are blocked, with 30 seconds between submissions.
+- Declined requests disappear after three days. Hidden decision records prevent old syncs from restoring them; a new incident can be submitted as a fresh request.
+- Added an independent Nearby KoS panel. Right-click the minimap button or use `/kos nearby` to show/hide it. It lists currently visible enemy nameplates, with class-coloured names, levels, classes, guilds and local markers. It expands to eight rows, then scrolls. Click an entry to pin its last reported location, if available.
+- Nearby panel position, visibility, collapse and pin state are saved. Pin locks its position. Settings is now a main-window tab with an auto-fade checkbox and faded-opacity slider (5–100%). An empty, unhovered panel uses the selected opacity; populated or hovered panels show at 100%.
+- Added automatic local nameplate markers in skull, cross, square, moon, triangle, diamond, circle and star order. Additional visible matches use red skulls. These are personal artwork, not real raid markers, and need enemy nameplates enabled.
+- Enemy levels now appear in chat and aura alerts, including shared sightings. Hidden levels show `??`.
+- Fixed repeated access confirmations caused by routine list syncs.
+
+All participating guild members should update for the new request and sighting messages. This remains a beta; report in-game layout or compatibility issues.

@@ -226,6 +226,7 @@ local function publish(target)
     end
     if ForeverKoS.PublishGuildTargets then ForeverKoS.PublishGuildTargets(target) end
     if ForeverKoS.PublishSightings then ForeverKoS.PublishSightings(target) end
+    if ForeverKoS.PublishRequests then ForeverKoS.PublishRequests(target) end
 end
 local function request()
     if not db or GetTime() - lastRequest < 30 then return end
@@ -241,14 +242,22 @@ local function receive(prefix, message, channel, sender)
             .. "]; roster rank=" .. tostring(senderKey and roster[senderKey]) .. "; self=[" .. tostring(me) .. "]")
     end
     if not senderKey or roster[senderKey] == nil or senderKey == key(me) then return end
+    if ForeverKoS.ReceiveRequest and ForeverKoS.ReceiveRequest(message,sender,channel,isOfficer(sender)) then return end
     if ForeverKoS.ReceivePresence and ForeverKoS.ReceivePresence(message,sender,channel) then return end
     if ForeverKoS.ReceiveGuildTarget and ForeverKoS.ReceiveGuildTarget(message,sender,channel,permitted(sender),GetTime()-lastRequest<=1200) then return end
     if message:sub(1,2)=="J\t" then
         local revision,result=message:match("^J\t(%d+)\t([AR])$")
         local pending=accessDelivery[senderKey]
         if channel=="WHISPER" and pending and pending.rev==tonumber(revision) then
+            -- Routine list snapshots can elicit the same acknowledgement again.
+            -- Keep the result visible in the UI without repeating chat messages.
+            if pending.result=="A" then return end
             pending.status=result=="A" and "Confirmed by recipient addon" or "Rejected: officer not recognized on their client"
-            say(displayName(sender) .. ": " .. pending.status)
+            pending.result=result
+            if not pending.notified then
+                pending.notified=true
+                say(displayName(sender) .. ": " .. pending.status)
+            end
         end
         return
     end
@@ -322,7 +331,7 @@ function ForeverKoS.PlaySightingSound()
     -- Keep alerts audible if the client cannot load the bundled clip.
     PlaySound(8959,"Master")
 end
-local function alert(name, reason, test, sighting, rule)
+local function alert(name, reason, test, sighting, rule, level)
     if not test then
         local k=key(name)
         if k and announced[k] and GetTime()-announced[k]<60 then return end
@@ -339,6 +348,9 @@ local function alert(name, reason, test, sighting, rule)
         local ok, link = pcall(ForeverKoS.MakeSpotLink)
         location = ok and link and (" — " .. link) or " — location unavailable"
     end
+    level=level or (sighting and sighting.level)
+    local levelText=level and (level==-1 and "Level ??" or ("Level " .. level))
+    if levelText then reason=levelText .. (reason~="" and (" — " .. reason) or "") end
     say((test and "TEST: " or "Spotted: ") .. displayName(name)
         .. " spotted by " .. displayName(sighting and sighting.spotter or me or unitName("player") or "you")
         .. (reason ~= "" and (" — " .. clean(reason)) or "") .. location)
@@ -346,7 +358,7 @@ local function alert(name, reason, test, sighting, rule)
     local wa = ForeverAuras or WeakAuras
     local zone=sighting and ForeverKoS.SightingZone and ForeverKoS.SightingZone(sighting) or GetZoneText() or ""
     if wa and wa.ScanEvents then wa.ScanEvents("FOREVER_KOS_SPOTTED", name, reason, zone,
-        sighting and sighting.spotter or me) end
+        sighting and sighting.spotter or me,level) end
 end
 function ForeverKoS.NotifyGuildSighting(sighting)
     if not db or db.enabled==false then return end
@@ -381,8 +393,13 @@ local function check(unit)
     if seen[k] and GetTime()-seen[k]<60 then explain("Sighting cooldown: " .. math.ceil(60-(GetTime()-seen[k])) .. "s");return end
     explain("Matched " .. name .. "; recording and sending sighting.")
     seen[k] = GetTime()
-    if ForeverKoS.RecordSighting then ForeverKoS.RecordSighting(name,enemyGuild) end
-    if db.enabled ~= false then alert(name, ForeverKoS.MatchReason(r), false,nil,r) end
+    local level
+    if UnitLevel then
+        local ok,value=pcall(UnitLevel,unit)
+        if ok and type(value)=="number" and (value==-1 or (value>=1 and value<=1000 and value==math.floor(value))) then level=value end
+    end
+    if ForeverKoS.RecordSighting then ForeverKoS.RecordSighting(name,enemyGuild,level) end
+    if db.enabled ~= false then alert(name, ForeverKoS.MatchReason(r), false,nil,r,level) end
 end
 local function guardedCheck(unit)
     if ForeverKoS.CheckPersonal then pcall(ForeverKoS.CheckPersonal,unit) end
@@ -434,6 +451,7 @@ function ForeverKoS.QueueSighting(message, target)
     if GetGuildInfo("player") then enqueue(message, target and "WHISPER" or "GUILD", target) end
 end
 function ForeverKoS.Edit(name, reason, deleted) edit(name, reason, deleted) end
+function ForeverKoS.EditSharedCharacter(name,reason) edit(name,reason,false) end
 function ForeverKoS.AddTarget(reason)
     if not UnitIsPlayer("target") then say("Target a player first."); return end
     edit(unitName("target"), reason or "", false)
@@ -489,7 +507,7 @@ SlashCmdList.FOREVERKOS = function(input)
             end
         end
     elseif command == "status" then
-        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.5.13"))
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.5.14"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])
@@ -526,7 +544,7 @@ frame:SetScript("OnUpdate", function(_, delta)
         if item and db and C_ChatInfo then
             -- Recheck permissions at send time in case an officer was demoted.
             local cacheReply=item[2]=="WHISPER" and (item[1]:sub(1,2)=="C\t" or item[1]:sub(1,2)=="H\t" or item[1]:sub(1,2)=="U\t")
-            if item[1] == "Q" or item[1]=="P" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2)=="J\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
+            if item[1] == "Q" or item[1]=="P" or item[1]:sub(1,2)=="N\t" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2)=="J\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
         end
     end
     if refresh >= 300 then

@@ -14,6 +14,7 @@ local function active(db,name,guildName)
 end
 local function pack(r)
     return table.concat({"S",r.stamp,encode(r.name),r.map,math.floor(r.x*100000+0.5),math.floor(r.y*100000+0.5),encode(r.spotter)},"\t") .. (r.guildName and ("\t" .. encode(r.guildName)) or "")
+        .. (r.level and ("\tL:" .. r.level) or "")
 end
 local function merge(db,r)
     local key=api.NameKey(r.name)
@@ -23,12 +24,12 @@ local function merge(db,r)
         return true
     end
 end
-function api.RecordSighting(name,guildName)
+function api.RecordSighting(name,guildName,level)
     local db,me=records()
     if not db or not me or not active(db,name,guildName) then return end
     local map,x,y
     if api.SpotPosition then map,x,y=api.SpotPosition() end
-    local r={name=name,spotter=me,stamp=now(),map=map or 0,x=x or 0,y=y or 0,guildName=guildName}
+    local r={name=name,spotter=me,stamp=now(),map=map or 0,x=x or 0,y=y or 0,guildName=guildName,level=level}
     if merge(db,r) then
         local message=pack(r)
         if #message<=250 then api.QueueSighting(message) end
@@ -37,7 +38,13 @@ end
 function api.ReceiveSighting(message,sender,isOfficer,isHistory)
     local db=records()
     if not db then return end
-    local guildName
+    local guildName,level
+    local withoutLevel,encodedLevel=message:match("^(S\t.+)\tL:(%-?%d+)$")
+    if withoutLevel then
+        level=tonumber(encodedLevel)
+        if level~=-1 and (level<1 or level>1000) then return end
+        message=withoutLevel
+    end
     local base,encodedGuild=message:match("^(S\t[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+\t[^\t]+)\t([^\t]+)$")
     if base then
         guildName=decode(encodedGuild)
@@ -56,7 +63,7 @@ function api.ReceiveSighting(message,sender,isOfficer,isHistory)
     if map~=0 and x==0 and y==0 then return end
     if map~=0 and C_Map and C_Map.GetMapInfo and not C_Map.GetMapInfo(map) then return end
     if not active(db,name,guildName) then return end
-    local r={name=name,spotter=spotter,stamp=stamp,map=map,x=x/100000,y=y/100000,guildName=guildName}
+    local r={name=name,spotter=spotter,stamp=stamp,map=map,x=x/100000,y=y/100000,guildName=guildName,level=level}
     local changed=merge(db,r)
     local age=now()-stamp
     if changed and not isHistory and age>=-15 and age<=30
