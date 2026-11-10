@@ -44,9 +44,7 @@ local function parseNameReason(input)
 end
 ForeverKoS.ParseNameReason = parseNameReason
 local function key(s) local n = full(s); return n and string.lower(n) end
-local function unitName(unit)
-    local n,surname=UnitFullName(unit)
-    if not n and UnitName then n=UnitName(unit) end
+local function characterName(n,surname)
     -- Forever returns first name and surname in the two UnitFullName slots.
     -- A real realm value is still ignored, for compatibility with standard clients.
     local realm=GetRealmName and GetRealmName()
@@ -54,6 +52,12 @@ local function unitName(unit)
     if n and surname and surname~="" and not n:find(" ",1,true)
         and surname~=realm and surname~=normalizedRealm then n=n .. " " .. surname end
     return full(n)
+end
+ForeverKoS.CharacterNameFromParts=characterName
+local function unitName(unit)
+    local n,surname=UnitFullName(unit)
+    if not n and UnitName then n=UnitName(unit) end
+    return characterName(n,surname)
 end
 ForeverKoS.UnitCharacterName=unitName
 -- Migrate active records without modifying the retained legacy snapshots.
@@ -507,7 +511,7 @@ SlashCmdList.FOREVERKOS = function(input)
             end
         end
     elseif command == "status" then
-        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.5.16"))
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.5.17"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])

@@ -56,6 +56,12 @@ ForeverKoSWindow.search:Show()
 ForeverKoS.ToggleSettings()
 assert(ForeverKoSWindow:IsShown() and InTheBinKoSSettings:IsShown())
 assert(not ForeverKoSWindow.search:IsShown())
+InTheBinKoSSettings.pvpTooltip.GetChecked=function()return false end
+InTheBinKoSSettings.pvpTooltip.scripts.OnClick(InTheBinKoSSettings.pvpTooltip)
+assert(ForeverKoS.Settings().showPvPRecordTooltip==false)
+InTheBinKoSSettings.pvpTooltip.GetChecked=function()return true end
+InTheBinKoSSettings.pvpTooltip.scripts.OnClick(InTheBinKoSSettings.pvpTooltip)
+assert(ForeverKoS.Settings().showPvPRecordTooltip==true)
 InTheBinKoSSettings.fade.GetChecked=function()return false end
 InTheBinKoSSettings.fade.scripts.OnClick(InTheBinKoSSettings.fade)
 assert(ForeverKoS.Settings().nearby.autoFade==false and InTheBinKoSNearby.testAlpha==1)

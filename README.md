@@ -167,3 +167,12 @@ All participating guild members should update for the new request and sighting m
 ### 0.5.16: Guild selection error fix
 
 Fixed a Lua error when selecting a KoS guild without a recorded sighting. Pin Last Seen stays disabled until a valid location is available. Guild selections no longer fall back to character sightings with the same name.
+### 0.5.17: Personal PvP records in tooltips
+
+- Enemy player tooltips now show your wins and losses against that player, whether or not they are on KoS. Friendly tooltips do not show the record.
+- Wins count killing blows from you or your pet. Losses use confirmed kill events or an identifiable fatal hit from your death recap. Assists and unidentified deaths are not counted.
+- Records are saved separately for each character, work outside a guild and start from installation. Past fights cannot be recovered.
+- Added “Show PvP record in player tooltips” to Settings. Turning it off hides the display while tracking continues.
+- Uses the dedicated kill event and death recap without registering the blocked legacy combat-log event.
+
+The local Oven Baked preview numbers are not included in this release.
