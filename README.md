@@ -176,3 +176,15 @@ Fixed a Lua error when selecting a KoS guild without a recorded sighting. Pin La
 - Uses the dedicated kill event and death recap without registering the blocked legacy combat-log event.
 
 The local Oven Baked preview numbers are not included in this release.
+
+## 0.6.0 beta
+
+**Counting starts with this patch.** Existing PvP wins, losses, killing-blow/assist totals and guild leaderboard summaries reset once when you first load 0.6.0. KoS lists, requests, permissions and settings are preserved.
+
+- Credited assists now count toward wins when the game's honorable-kill message identifies the defeated player. Unnamed honor rewards are not guessed.
+- Killing blows and assists are tracked separately and shown below the combined win/loss record in enemy player tooltips. Duplicate signals for the same kill do not award another win.
+- Added a **PvP** tab with personal **Top Kills**, **Most Deaths** and **Recent Opponents** views. Recent Opponents shows the latest recorded encounter per opponent.
+- Added a **Guild** leaderboard showing members' tracked wins and their most-killed opponent. It shares summaries rather than full personal histories. Members need this update to participate; offline entries show their last-shared totals.
+- Battleground and arena encounters do not add wins, assists or losses. These records are for world PvP.
+
+Update through CurseForge or WowUp and restart the game to load the new files. This remains a beta; report any tracking or layout issues.

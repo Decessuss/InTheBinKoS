@@ -36,9 +36,9 @@ r.execute('now=104')
 kill('Pet-1-Self')
 assert api.GetPlayerKillCount('Player-2-Enemy')==2
 r.execute('GameTooltip.scripts.OnTooltipSetUnit(GameTooltip);GameTooltip.scripts.OnTooltipSetUnit(GameTooltip)')
-assert list(r.globals().tooltipLines.values())==['Your PvP record: 2 wins / 0 losses']
+assert list(r.globals().tooltipLines.values())==['Your PvP record: 2 wins / 0 losses','Killing blows: 2 | Assists: 0']
 r.execute('GameTooltip.scripts.OnTooltipCleared(GameTooltip);guids.mouseover="Player-2-Unseen";GameTooltip.scripts.OnTooltipSetUnit(GameTooltip)')
-assert r.globals().tooltipLines[2]=='Your PvP record: 0 wins / 0 losses'
+assert r.globals().tooltipLines[3]=='Your PvP record: 0 wins / 0 losses'
 # Private character storage, independent of guild membership and saved over reload.
 r.execute('guids.player="Player-1-Alt"')
 assert api.GetPlayerKillCount('Player-2-Enemy')==0
@@ -54,7 +54,7 @@ testFrame.OnEvent(testFrame,"PLAYER_LOGIN")
 GameTooltip.scripts.OnTooltipCleared(GameTooltip)
 guids.mouseover="Player-2-Enemy"
 modernCallback(GameTooltip)
-assert(tooltipLines[#tooltipLines]=="Your PvP record: 2 wins / 0 losses")
+assert(tooltipLines[#tooltipLines-1]=="Your PvP record: 2 wins / 0 losses")
 local hidden={}
 function issecretvalue(v)return v==hidden end
 testFrame.OnEvent(testFrame,"PARTY_KILL",hidden,hidden)
@@ -69,7 +69,7 @@ modernCallback(GameTooltip)
 assert(#tooltipLines==before)
 function UnitIsFriend()return false end
 modernCallback(GameTooltip)
-assert(#tooltipLines==before+1)
+assert(#tooltipLines==before+2)
 UnitIsFriend=nil
 ''')
 r.execute('''
@@ -82,5 +82,5 @@ testFrame.OnEvent(testFrame,"PARTY_KILL","Player-1-Self","Player-2-NewEnemy")
 assert(ForeverKoS.GetPlayerKillCount("Player-2-NewEnemy")==1)
 ForeverKoS.Settings().showPvPRecordTooltip=true
 modernCallback(GameTooltip)
-assert(#tooltipLines==before+1)
+assert(#tooltipLines==before+2)
 ''')

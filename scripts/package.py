@@ -6,12 +6,12 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser()
-parser.add_argument('--version',default='0.5.17')
+parser.add_argument('--version',default='0.6.0')
 args=parser.parse_args()
 version=args.version.removeprefix('v')
 if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?',version):
     raise SystemExit('Version must look like 0.5.0 or 0.5.1-beta.1')
-files=['Core.lua','Kills.lua','Locations.lua','Sightings.lua','Guilds.lua','Personal.lua','Presence.lua','Nameplates.lua','Requests.lua','UI.lua','RequestUI.lua','Nearby.lua','SettingsUI.lua','README.md','Media/GuildBackground.tga','Media/EnemySpotted.mp3','Media/CREDITS.txt']
+files=['Core.lua','Kills.lua','PvPStats.lua','Locations.lua','Sightings.lua','Guilds.lua','Personal.lua','Presence.lua','Nameplates.lua','Requests.lua','UI.lua','RequestUI.lua','Nearby.lua','SettingsUI.lua','PvPUI.lua','README.md','Media/GuildBackground.tga','Media/EnemySpotted.mp3','Media/CREDITS.txt']
 files += ['docs/FULL-GUIDE.md','docs/ForeverKoS-ForeverAura-import.txt']
 for file in files:
     if not (ROOT/file).is_file(): raise SystemExit('Missing release file: '+file)

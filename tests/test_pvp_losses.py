@@ -39,7 +39,7 @@ deathHits={{sourceName="Enemy Person",timestamp=240,event="SPELL_DAMAGE"}}
 testFrame.OnEvent(testFrame,"PLAYER_DEAD")
 GameTooltip.scripts.OnTooltipCleared(GameTooltip)
 modernCallback(GameTooltip)
-assert(tooltipLines[#tooltipLines]=="Your PvP record: 2 wins / 3 losses")
+assert(tooltipLines[#tooltipLines-1]=="Your PvP record: 2 wins / 3 losses")
 ''')
 assert api.GetPlayerPvPRecord('Player-2-Enemy')==(2,3)
 print('PASS: PvP losses from death recap/kill events, per-death deduplication, stale recap rejection, NPC/environment exclusion and observed-player resolution.')

@@ -2,6 +2,7 @@ local api = ForeverKoS
 local window, minimap, refresh
 local settingsMode=false
 local requestsMode=false
+local pvpMode=false
 local settingsHidden
 local page, selected, rows = 1, nil, {}
 local SIZE = 7
@@ -58,6 +59,7 @@ local function createWindow()
     local function switchList(value,guilds,users)
         settingsMode=false
         requestsMode=false
+        pvpMode=false
         if api.SetPersonalMode then api.SetPersonalMode(value) end
         if api.SetGuildMode then api.SetGuildMode(guilds) end
         if api.SetUsersMode then api.SetUsersMode(users) end
@@ -65,12 +67,13 @@ local function createWindow()
         window.name:SetText("");window.reason:SetText("");window.search:SetText("")
         refresh()
     end
-    window.guildTab=button(window,"Guild List",20,-44,78,function() switchList(false) end)
-    window.personalTab=button(window,"Personal List",103,-44,92,function() switchList(true) end)
-    window.guildsTab=button(window,"KoS Guilds",200,-44,90,function() switchList(false,true) end)
-    window.usersTab=button(window,"Users & Access",295,-44,110,function() switchList(false,false,true) end)
-    window.requests=button(window,"Requests",410,-44,65,function()api.ShowRequests()end)
-    window.settings=button(window,"Settings",480,-44,60,function()api.ShowSettings()end)
+    window.guildTab=button(window,"Guild List",20,-44,70,function() switchList(false) end)
+    window.personalTab=button(window,"Personal List",93,-44,80,function() switchList(true) end)
+    window.guildsTab=button(window,"KoS Guilds",176,-44,80,function() switchList(false,true) end)
+    window.usersTab=button(window,"Users & Access",259,-44,105,function() switchList(false,false,true) end)
+    window.requests=button(window,"Requests",367,-44,65,function()api.ShowRequests()end)
+    window.settings=button(window,"Settings",435,-44,60,function()api.ShowSettings()end)
+    window.pvp=button(window,"PvP",498,-44,42,function()api.ShowPvPStats()end)
     window.searchLabel=label(window,"Search",20,-107,"GameFontNormalSmall")
     window.search=editBox(window,78,-100,255,80)
     window.search:SetScript("OnTextChanged",function() page=1; if refresh then refresh() end end)
@@ -172,7 +175,7 @@ local function createWindow()
     window.grant=button(window,"Grant Access",265,-636,130,function() api.SetEditor(window.accessName:GetText(),true);refresh() end)
     window.revoke=button(window,"Revoke Access",400,-636,135,function() api.SetEditor(window.accessName:GetText(),false);refresh() end)
     refresh=function()
-        if (settingsMode and api.CreateSettingsPage) or (requestsMode and api.CreateRequestsPage) then
+        if (settingsMode and api.CreateSettingsPage) or (requestsMode and api.CreateRequestsPage) or (pvpMode and api.CreatePvPPage) then
             if not settingsHidden then
                 settingsHidden={}
                 for _,key in ipairs({"status","searchLabel","search","sort","empty","prev","page","next","nameLabel","reasonLabel","name","reason","add","target","remove","test","sync","scan","pin","sound","soundLabel","alerts","alertsLabel","footer","accessLabel","accessName","accessStatus","grant","revoke"}) do
@@ -184,10 +187,12 @@ local function createWindow()
             for _,tab in ipairs({window.guildTab,window.personalTab,window.guildsTab,window.usersTab}) do tab:SetEnabled(true) end
             window.settings:SetEnabled(not settingsMode)
             window.requests:SetEnabled(not requestsMode)
-            window:SetSize(560,requestsMode and 730 or 530)
+            window.pvp:SetEnabled(not pvpMode)
+            window:SetSize(560,requestsMode and 730 or (pvpMode and 660 or 530))
             window.rank:SetText(api.GetRankLabel())
             if api.CreateSettingsPage then api.CreateSettingsPage(window):SetShown(settingsMode) end
             if api.CreateRequestsPage then api.CreateRequestsPage(window):SetShown(requestsMode);if requestsMode then api.RefreshRequests() end end
+            if api.CreatePvPPage then api.CreatePvPPage(window):SetShown(pvpMode);if pvpMode then api.RefreshPvPStats() end end
             return
         end
         if settingsHidden then
@@ -196,8 +201,10 @@ local function createWindow()
         end
         if api.CreateSettingsPage then api.CreateSettingsPage(window):Hide() end
         if api.CreateRequestsPage then api.CreateRequestsPage(window):Hide() end
+        if api.CreatePvPPage then api.CreatePvPPage(window):Hide() end
         window.settings:SetEnabled(true)
         window.requests:SetEnabled(true)
+        window.pvp:SetEnabled(true)
         local entries, canEdit, scope, sound, alerts=api.GetState()
         local private=api.IsPersonalMode and api.IsPersonalMode()
         local guilds=guildMode()
@@ -296,12 +303,18 @@ local function createWindow()
 end
 function api.ShowSettings()
     if not window then createWindow() end
-    settingsMode=true;requestsMode=false
+    settingsMode=true;requestsMode=false;pvpMode=false
     window:Show();refresh()
 end
 function api.ShowRequests()
     if not window then createWindow() end
-    requestsMode=true;settingsMode=false
+    requestsMode=true;settingsMode=false;pvpMode=false
+    window:Show();refresh()
+end
+function api.ShowPvPStats()
+    if not window then createWindow() end
+    pvpMode=true;settingsMode=false;requestsMode=false
+    if api.RequestPvPLeaderboard then api.RequestPvPLeaderboard() end
     window:Show();refresh()
 end
 function api.ToggleUI()

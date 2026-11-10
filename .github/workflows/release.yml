@@ -45,12 +45,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           flags=()
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease); fi
+          if [[ "$GITHUB_REF_NAME" == v0.* || "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease); fi
+          notes=(--generate-notes)
+          notes_file="docs/releases/${GITHUB_REF_NAME}.md"
+          if [[ -f "$notes_file" ]]; then notes=(--notes-file "$notes_file"); fi
           asset="dist/InTheBinKoS-${GITHUB_REF_NAME}-forever.zip"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$asset" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$asset" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes "${flags[@]}"
+            gh release create "$GITHUB_REF_NAME" "$asset" --verify-tag --title "$GITHUB_REF_NAME" "${notes[@]}" "${flags[@]}"
           fi
 
   curseforge:

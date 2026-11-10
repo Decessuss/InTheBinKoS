@@ -246,6 +246,7 @@ local function receive(prefix, message, channel, sender)
             .. "]; roster rank=" .. tostring(senderKey and roster[senderKey]) .. "; self=[" .. tostring(me) .. "]")
     end
     if not senderKey or roster[senderKey] == nil or senderKey == key(me) then return end
+    if ForeverKoS.ReceivePvPStats and ForeverKoS.ReceivePvPStats(message,sender) then return end
     if ForeverKoS.ReceiveRequest and ForeverKoS.ReceiveRequest(message,sender,channel,isOfficer(sender)) then return end
     if ForeverKoS.ReceivePresence and ForeverKoS.ReceivePresence(message,sender,channel) then return end
     if ForeverKoS.ReceiveGuildTarget and ForeverKoS.ReceiveGuildTarget(message,sender,channel,permitted(sender),GetTime()-lastRequest<=1200) then return end
@@ -447,6 +448,7 @@ function ForeverKoS.SharedAccessLabel(name)
     return permitted(name) and "Granted editor" or "Member"
 end
 function ForeverKoS.QueuePresence(message) if db then enqueue(message) end end
+function ForeverKoS.IsCurrentGuildMember(name) local k=key(name);return k~=nil and roster[k]~=nil end
 function ForeverKoS.QueueGuildTarget(message,target) enqueue(message,target and "WHISPER" or "GUILD",target) end
 function ForeverKoS.SightingContext() return db, me end
 function ForeverKoS.NameKey(name) return key(name) end
@@ -511,7 +513,7 @@ SlashCmdList.FOREVERKOS = function(input)
             end
         end
     elseif command == "status" then
-        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.5.17"))
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.0"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])
@@ -531,6 +533,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
         if event ~= "GUILD_ROSTER_UPDATE" and C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
         request()
         if ForeverKoS.PresenceChanged then ForeverKoS.PresenceChanged() end
+        if ForeverKoS.PvPStatsGuildChanged then ForeverKoS.PvPStatsGuildChanged() end
     elseif event == "CHAT_MSG_ADDON" then receive(...)
     elseif event == "NAME_PLATE_UNIT_ADDED" then guardedCheck(...)
     elseif event == "PLAYER_TARGET_CHANGED" then guardedCheck("target")
@@ -539,6 +542,7 @@ end)
 frame:SetScript("OnUpdate", function(_, delta)
     elapsed, refresh = elapsed + delta, refresh + delta
     if ForeverKoS.PresenceTick then ForeverKoS.PresenceTick(delta) end
+    if ForeverKoS.PvPStatsTick then pcall(ForeverKoS.PvPStatsTick,delta) end
     if elapsed >= 0.2 then
         elapsed = 0
         -- Mouseover identity can become readable after the initial event. Retry
@@ -548,7 +552,7 @@ frame:SetScript("OnUpdate", function(_, delta)
         if item and db and C_ChatInfo then
             -- Recheck permissions at send time in case an officer was demoted.
             local cacheReply=item[2]=="WHISPER" and (item[1]:sub(1,2)=="C\t" or item[1]:sub(1,2)=="H\t" or item[1]:sub(1,2)=="U\t")
-            if item[1] == "Q" or item[1]=="P" or item[1]:sub(1,2)=="N\t" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2)=="J\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
+            if item[1] == "Q" or item[1]=="P" or item[1]=="l" or item[1]:sub(1,2)=="L\t" or item[1]:sub(1,2)=="N\t" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2)=="J\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
         end
     end
     if refresh >= 300 then
