@@ -336,7 +336,36 @@ function ForeverKoS.PlaySightingSound()
     -- Keep alerts audible if the client cannot load the bundled clip.
     PlaySound(8959,"Master")
 end
+-- Local per-opponent suppression of this character's sightings.
+local sightingMutes={}
+local function muteKey(name) return key(name) end
+function ForeverKoS.IsSightingMuted(name)
+    local k=muteKey(name);local deadline=k and sightingMutes[k]
+    if deadline and GetTime()<deadline then return true end
+    if k then sightingMutes[k]=nil end
+    return false
+end
+local function muteLink(name,unmute)
+    local encoded=(name:gsub("([^%w ])",function(c)return string.format("%%%02X",c:byte())end))
+    return "|Hgarrmission:kosmute:" .. (unmute and "unmute" or "mute") .. ":" .. encoded .. "|h[" .. (unmute and "Unmute" or "Mute 30m") .. "]|h"
+end
+function ForeverKoS.SetSightingMute(name,seconds)
+    name=full(name);if not name then return end
+    local k=muteKey(name)
+    if seconds==0 then sightingMutes[k]=nil;say("Your sightings of " .. name .. " are unmuted.");return end
+    sightingMutes[k]=GetTime()+1800
+    say("Your sightings of " .. name .. " are muted for 30 minutes. " .. muteLink(name,true))
+end
+function ForeverKoS.HandleMuteLink(link)
+    if type(link)~="string" then return end
+    local action,encoded=link:match("^garrmission:kosmute:(%a+):(.+)$")
+    if action~="mute" and action~="unmute" then return end
+    local name=(encoded:gsub("%%(%x%x)",function(c)return string.char(tonumber(c,16))end))
+    ForeverKoS.SetSightingMute(name,action=="unmute" and 0 or 1)
+end
+if hooksecurefunc and SetItemRef then hooksecurefunc("SetItemRef",function(link)ForeverKoS.HandleMuteLink(link)end) end
 local function alert(name, reason, test, sighting, rule, level)
+    if (not sighting or key(sighting.spotter)==key(me)) and ForeverKoS.IsSightingMuted(name) then return end
     if not test then
         local k=key(name)
         if k and announced[k] and GetTime()-announced[k]<60 then return end
@@ -358,7 +387,8 @@ local function alert(name, reason, test, sighting, rule, level)
     if levelText then reason=levelText .. (reason~="" and (" — " .. reason) or "") end
     say((test and "TEST: " or "Spotted: ") .. displayName(name)
         .. " spotted by " .. displayName(sighting and sighting.spotter or me or unitName("player") or "you")
-        .. (reason ~= "" and (" — " .. clean(reason)) or "") .. location)
+        .. (reason ~= "" and (" — " .. clean(reason)) or "") .. location
+        .. ((not sighting or key(sighting.spotter)==key(me)) and (" " .. muteLink(name)) or ""))
     if db and db.sound ~= false then ForeverKoS.PlaySightingSound() end
     local wa = ForeverAuras or WeakAuras
     local zone=sighting and ForeverKoS.SightingZone and ForeverKoS.SightingZone(sighting) or GetZoneText() or ""
@@ -395,6 +425,7 @@ local function check(unit)
     local r = ForeverKoS.MatchRecord(name,enemyGuild)
     if not name then explain("Player name unavailable.");return end
     if not r or r.deleted then explain("Not on this list: " .. name);return end
+    if ForeverKoS.IsSightingMuted(name) then explain("Your sightings of this player are muted.");return end
     if seen[k] and GetTime()-seen[k]<60 then explain("Sighting cooldown: " .. math.ceil(60-(GetTime()-seen[k])) .. "s");return end
     explain("Matched " .. name .. "; recording and sending sighting.")
     seen[k] = GetTime()
@@ -513,7 +544,7 @@ SlashCmdList.FOREVERKOS = function(input)
             end
         end
     elseif command == "status" then
-        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.1"))
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.2"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])

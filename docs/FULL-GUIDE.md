@@ -277,3 +277,9 @@ Generic Honor messages are matched to session honorable-kill increases and PARTY
 Confirmed killing blows against KoS players produce a guild addon notification: Yozah Hunt has been slain by Oven Baked 1 time. Counts are per killer/opponent within the guild, starting with this feature. Guild-rule matches require the enemy guild to have been observed. Assists do not count as slain-by credits. PvP > KoS Slain shows the ten most recently updated pairs; all pairs are saved. Current members publish their own counts on leaderboard requests. History updates stay silent. These are client-reported records, not server-verified statistics.
 
 Reimport the updated card to handle FOREVER_KOS_SLAIN(enemy, killer, count) alongside sightings. The slain card shows the enemy, killer and count. Guild peers need the addon update for these reports. All participating guild members need 0.6.1 or later for KoS defeat reports.
+
+## 0.6.2 beta
+
+- Added **[Mute 30m]** to your own sighting notifications. Silence that specific player's sightings from your character for 30 minutes, with **[Unmute]** to end it early.
+- Muted sightings do not play your alerts or broadcast another report to the guild. Other spotters can still report that player, and kill tracking continues.
+- Removed the temporary repeating test sightings. Mutes are local to the current session and clear on reload/logout.

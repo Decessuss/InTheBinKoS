@@ -198,3 +198,9 @@ Update through CurseForge or WowUp and restart the game to load the new files. T
 - Existing PvP counters are preserved. Battlegrounds and arenas remain excluded.
 
 All participating guild members should update for the new defeat reports. Assist matching waits six quiet seconds and leaves ambiguous credits unattributed. This remains a beta.
+
+## 0.6.2 beta
+
+- Added **[Mute 30m]** to your own sighting notifications. Silence that specific player's sightings from your character for 30 minutes, with **[Unmute]** to end it early.
+- Muted sightings do not play your alerts or broadcast another report to the guild. Other spotters can still report that player, and kill tracking continues.
+- Removed the temporary repeating test sightings. Mutes are local to the current session and clear on reload/logout.

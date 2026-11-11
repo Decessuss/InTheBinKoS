@@ -25,6 +25,7 @@ local function merge(db,r)
     end
 end
 function api.RecordSighting(name,guildName,level)
+    if api.IsSightingMuted and api.IsSightingMuted(name) then return end
     local db,me=records()
     if not db or not me or not active(db,name,guildName) then return end
     local map,x,y
