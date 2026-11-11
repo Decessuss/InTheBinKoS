@@ -8,12 +8,17 @@ function api.RefreshPvPStats()
     if not window or not window:IsShown() then return end
     local entries=api.GetPvPStatsRows(mode)
     for key,button in pairs(window.tabs)do button:SetEnabled(key~=mode)end
-    window.description:SetText(mode=="guild" and "Guild records since 0.6.0. Wins include credited assists." or (mode=="recent" and "Recent opponents, showing the latest recorded encounter with each." or "Your top 10 since 0.6.0. Wins include credited assists."))
+    window.description:SetText(mode=="slain" and "Latest KoS defeats. Counts show each guild member's confirmed killing blows." or mode=="guild" and "Guild records since 0.6.0. Wins include credited assists." or (mode=="recent" and "Recent opponents, showing the latest recorded encounter with each." or "Your top 10 since 0.6.0. Wins include credited assists."))
     window.empty:SetShown(#entries==0)
     window.empty:SetText(mode=="guild" and "Join a guild to see shared member records." or "No tracked encounters yet.")
     for i,row in ipairs(rows)do
         local r=entries[i];row:SetShown(r~=nil)
         if r then
+            if mode=="slain" then
+                row.title:SetText(r.enemy .. " has been slain by " .. r.name)
+                row.detail:SetText(r.count .. (r.count==1 and " time" or " times"))
+                row.extra:SetText("Last slain: " .. api.SightingAge({stamp=r.stamp}))
+            else
             row.title:SetText(i .. ". " .. r.name .. "  |  " .. r.wins .. " wins / " .. r.losses .. " losses")
             if mode=="guild" then
                 row.detail:SetText(r.topCount>0 and ("Top opponent: " .. r.topName .. " (" .. r.topCount .. ")") or "No tracked wins yet")
@@ -25,6 +30,7 @@ function api.RefreshPvPStats()
                 local result=r.lastLoss>r.lastKill and "Loss" or (r.lastKillType=="killingBlow" and "Killing blow" or (r.lastKillType=="assist" and "Assist" or "Win (unclassified)"))
                 row.extra:SetText(stamp>0 and (result .. " — " .. api.SightingAge({stamp=stamp})) or "")
             end
+            end
         end
     end
 end
@@ -34,12 +40,12 @@ function api.CreatePvPPage(parent)
     window:SetSize(520,560);window:SetPoint("TOPLEFT",parent,"TOPLEFT",20,-80)
     label(window,"PvP Records",0,-10,"GameFontNormalLarge")
     window.tabs={}
-    local choices={{"kills","Top Kills"},{"deaths","Most Deaths"},{"recent","Recent Opponents"},{"guild","Guild"}}
+    local choices={{"kills","Top Kills"},{"deaths","Most Deaths"},{"recent","Recent Opponents"},{"guild","Guild"},{"slain","KoS Slain"}}
     for i,choice in ipairs(choices)do
         local key=choice[1]
         local b=CreateFrame("Button",nil,window,"UIPanelButtonTemplate")
-        b:SetSize(125,24);b:SetPoint("TOPLEFT",(i-1)*130,-40);b:SetText(choice[2])
-        b:SetScript("OnClick",function()mode=key;if mode=="guild" then api.RequestPvPLeaderboard() end;api.RefreshPvPStats()end)
+        b:SetSize(100,24);b:SetPoint("TOPLEFT",(i-1)*104,-40);b:SetText(choice[2])
+        b:SetScript("OnClick",function()mode=key;if mode=="guild" or mode=="slain" then api.RequestPvPLeaderboard() end;api.RefreshPvPStats()end)
         window.tabs[key]=b
     end
     window.description=label(window,"",0,-76)

@@ -513,7 +513,7 @@ SlashCmdList.FOREVERKOS = function(input)
             end
         end
     elseif command == "status" then
-        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.0"))
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.1"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])
@@ -552,7 +552,7 @@ frame:SetScript("OnUpdate", function(_, delta)
         if item and db and C_ChatInfo then
             -- Recheck permissions at send time in case an officer was demoted.
             local cacheReply=item[2]=="WHISPER" and (item[1]:sub(1,2)=="C\t" or item[1]:sub(1,2)=="H\t" or item[1]:sub(1,2)=="U\t")
-            if item[1] == "Q" or item[1]=="P" or item[1]=="l" or item[1]:sub(1,2)=="L\t" or item[1]:sub(1,2)=="N\t" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2)=="J\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
+            if item[1] == "Q" or item[1]=="P" or item[1]=="l" or item[1]:sub(1,2)=="K\t" or item[1]:sub(1,2)=="L\t" or item[1]:sub(1,2)=="N\t" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2)=="J\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
         end
     end
     if refresh >= 300 then

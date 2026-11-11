@@ -188,3 +188,13 @@ The local Oven Baked preview numbers are not included in this release.
 - Battleground and arena encounters do not add wins, assists or losses. These records are for world PvP.
 
 Update through CurseForge or WowUp and restart the game to load the new files. This remains a beta; report any tracking or layout issues.
+
+## 0.6.1 beta
+
+- Fixed assist tracking for unnamed Honor messages. A single credited kill can now be matched to its victim; ambiguous fights stay unattributed.
+- Added guild KoS defeat notifications, such as "Yozah Hunt has been slain by Oven Baked 1 time." Counts track confirmed killing blows per guild member and opponent.
+- Added **PvP > KoS Slain** to view the most recent KoS defeat records. Duplicate messages and history sync do not replay alerts.
+- Updated the aura card to show KoS defeats as well as sightings. **Reimport the included ForeverAura card through /fa** to see the new notifications.
+- Existing PvP counters are preserved. Battlegrounds and arenas remain excluded.
+
+All participating guild members should update for the new defeat reports. Assist matching waits six quiet seconds and leaves ambiguous credits unattributed. This remains a beta.

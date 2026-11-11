@@ -4,10 +4,17 @@ local frame=CreateFrame("Frame")
 local recent={}
 local recentTypes={}
 local knownNames={}
+local knownDisplayNames={}
+local knownGuilds={}
 local lossRecorded=false
 local deathGeneration=0
 local baselineRecap
 local adoptCredits
+local pvpDebug=false
+local lastHK,debugElapsed=nil,0
+local honorBatch
+local trackingHonor=false
+local settleHonor
 local RECORD_EPOCH="0.6.0"
 function api.EnsurePvPRecordEpoch()
     ForeverKoSDB=ForeverKoSDB or {guilds={}}
@@ -19,6 +26,15 @@ function api.EnsurePvPRecordEpoch()
 end
 local function readable(value)
     return not issecretvalue or not issecretvalue(value)
+end
+local function trace(text)
+    if not pvpDebug then return end
+    text=text:gsub("[%c|]"," ")
+    print("|cffffb45b<in the bin> KoS List:|r PVPDEBUG: " .. text)
+    ForeverKoSDB=ForeverKoSDB or {guilds={}}
+    local log=ForeverKoSDB.pvpDiagnostics or {};ForeverKoSDB.pvpDiagnostics=log
+    log[#log+1]={stamp=GetServerTime and GetServerTime() or time(),text=text}
+    while #log>50 do table.remove(log,1) end
 end
 local function trackingAllowed()
     if not IsInInstance then return true end
@@ -42,6 +58,8 @@ local function remember(unit)
     local guid=UnitGUID(unit);local name=api.UnitCharacterName(unit)
     if playerGUID(guid) and name then
         knownNames[api.NameKey(name)]=guid
+        knownDisplayNames[guid]=name
+        if GetGuildInfo then knownGuilds[guid]=GetGuildInfo(unit) end
         if adoptCredits then adoptCredits(guid,name) end
     end
 end
@@ -69,6 +87,7 @@ local function saveResult(opponent,loss,creditType)
             if readable(first) and readable(surname) then name=api.CharacterNameFromParts(first,surname) end
         end)
     end
+    name=name or knownDisplayNames[opponent]
     if name then adoptCredits(opponent,name);knownNames[api.NameKey(name)]=opponent end
     local stamp=GetTime()
     local dedup=(loss and "loss:" or "win:") .. opponent
@@ -80,6 +99,7 @@ local function saveResult(opponent,loss,creditType)
             row.assists=math.max(0,(row.assists or 0)-1)
             row.killingBlows=(row.killingBlows or 0)+1
             row.lastKillType="killingBlow";recentTypes[dedup]="killingBlow"
+            if name and api.RecordKoSSlain then api.RecordKoSSlain(name,knownGuilds[opponent]) end
             if api.PvPStatsChanged then api.PvPStatsChanged() end
         end
         return
@@ -99,6 +119,48 @@ local function saveResult(opponent,loss,creditType)
     db[opponent]=row
     row.name=name or row.name
     if api.PvPStatsChanged then api.PvPStatsChanged() end
+    if not loss and creditType=="killingBlow" and name and api.RecordKoSSlain then
+        api.RecordKoSSlain(name,knownGuilds[opponent])
+    end
+end
+-- A session HK increase proves credit, while PARTY_KILL supplies the victim.
+-- Keep the whole burst together and only attribute an isolated, single kill.
+local function touchHonor()
+    local now=GetTime()
+    honorBatch=honorBatch or {started=now,updated=now,credits=0,victims={}}
+    honorBatch.updated=now
+    return honorBatch
+end
+settleHonor=function()
+    local batch=honorBatch
+    if not batch or GetTime()-batch.updated<6 then return end
+    honorBatch=nil
+    local victim,total=nil,0
+    for guid in pairs(batch.victims) do victim=guid;total=total+1 end
+    if batch.credits==1 and total==1 and not batch.named then
+        if batch.victims[victim]=="assist" then
+            saveResult(victim,false,"assist")
+            trace("Matched isolated honorable-kill credit to assist victim=" .. victim)
+        end
+    elseif batch.credits>0 then
+        trace("Honor credit left unattributed: credits=" .. batch.credits .. "; candidate victims=" .. total)
+    end
+end
+local function pollHonor()
+    local allowed=trackingAllowed()
+    if not allowed then honorBatch=nil end
+    if not GetPVPSessionStats then return end
+    local ok,hk=pcall(GetPVPSessionStats)
+    if not ok or not readable(hk) or type(hk)~="number" then return end
+    if lastHK~=hk then
+        trace("Session honorable kills=" .. hk .. (lastHK and ("; change=" .. (hk-lastHK)) or ""))
+        if allowed and trackingHonor and lastHK and hk>lastHK then
+            local batch=touchHonor();batch.credits=batch.credits+(hk-lastHK)
+        elseif lastHK and hk<lastHK then honorBatch=nil end
+        lastHK=hk
+    end
+    trackingHonor=allowed
+    if allowed then settleHonor() end
 end
 local function honorPattern(format)
     if type(format)~="string" then return end
@@ -125,15 +187,18 @@ local function honorPattern(format)
     if victim then return "^" .. table.concat(pattern) .. "$",victim end
 end
 local function honorCredit(message)
-    if not trackingAllowed() then return end
-    if not readable(message) or type(message)~="string" then return end
+    if not trackingAllowed() then trace("Honor message ignored: battleground/arena.");return end
+    if not readable(message) or type(message)~="string" then trace("Honor message identity is restricted.");return end
+    trace("Honor message: " .. message)
     local name
     for _,key in ipairs({"COMBATLOG_HONORGAIN","COMBATLOG_HONORGAIN_NO_RANK","COMBATLOG_HONORGAIN_EXHAUSTION","COMBATLOG_HONORGAIN_NO_RANK_EXHAUSTION"}) do
         local pattern,victim=honorPattern(_G[key])
         if pattern then local fields={message:match(pattern)};name=fields[victim];if name then break end end
     end
     name=name and api.NormalizeName(name)
-    if not name then return end -- Bonus honor does not identify a defeated player.
+    if not name then trace("No named kill matched the client's honor-message templates.");return end -- Bonus honor does not identify a defeated player.
+    touchHonor().named=true
+    trace("Matched credited opponent: " .. name)
     pcall(remember,"target");pcall(remember,"mouseover")
     local db=data();if not db then return end
     local key=api.NameKey(name);local guid=knownNames[key]
@@ -142,7 +207,13 @@ local function honorCredit(message)
             if playerGUID(candidate) and type(row)=="table" and row.name and api.NameKey(row.name)==key then guid=candidate;break end
         end
     end
-    if guid then saveResult(guid,false,"assist");return end
+    if guid then
+        local before=api.GetPlayerKillCount(guid)
+        saveResult(guid,false,"assist")
+        trace("Resolved player; wins=" .. api.GetPlayerKillCount(guid) .. "; previous=" .. before)
+        return
+    end
+    trace("Player GUID not yet observed; retaining named credit.")
     -- A named game credit can be retained before the player's GUID is observed.
     db.namedCredits=db.namedCredits or {}
     local row=db.namedCredits[key] or {count=0}
@@ -170,7 +241,13 @@ local function record(attacker,victim)
     local _,me=data();if not me then return end
     if victim==me then saveResult(attacker,true);return end
     local pet=UnitGUID and UnitGUID("pet")
-    if attacker==me or (readable(pet) and pet and attacker==pet) then saveResult(victim,false,"killingBlow") end
+    local own=attacker==me or (readable(pet) and pet and attacker==pet)
+    if trackingAllowed() then
+        pcall(remember,"target");pcall(remember,"mouseover")
+        local batch=touchHonor()
+        batch.victims[victim]=own and "killingBlow" or batch.victims[victim] or "assist"
+    end
+    if own then saveResult(victim,false,"killingBlow") end
 end
 local function recapEntry()
     if not C_DeathRecap or not C_DeathRecap.GetRecapEvents then return end
@@ -243,7 +320,7 @@ local function hookTooltips()
     end
 end
 frame:SetScript("OnEvent",function(_,event,...)
-    if event=="PLAYER_LOGIN" then pcall(hookTooltips) end
+    if event=="PLAYER_LOGIN" then pcall(hookTooltips);pcall(pollHonor) end
     if event=="PLAYER_LOGIN" or event=="PLAYER_ALIVE" or event=="PLAYER_UNGHOST" then
         api.EnsurePvPRecordEpoch()
         lossRecorded=false;deathGeneration=deathGeneration+1
@@ -262,10 +339,39 @@ frame:SetScript("OnEvent",function(_,event,...)
     if event=="PLAYER_TARGET_CHANGED" then pcall(remember,"target");return end
     if event=="UPDATE_MOUSEOVER_UNIT" then pcall(remember,"mouseover");return end
     if event=="NAME_PLATE_UNIT_ADDED" then pcall(remember,...);return end
-    if event=="PARTY_KILL" then pcall(record,...);return end
+    if event=="PARTY_KILL" then
+        local attacker,victim=...
+        if pvpDebug then pcall(function()
+            trace("Kill event: attacker=" .. (readable(attacker) and tostring(attacker) or "restricted")
+                .. "; victim=" .. (readable(victim) and tostring(victim) or "restricted"))
+        end) end
+        pcall(record,...);return
+    end
     if event=="CHAT_MSG_COMBAT_HONOR_GAIN" then pcall(honorCredit,...);return end
 end)
 frame:RegisterEvent("PLAYER_LOGIN")
 for _,event in ipairs({"PLAYER_DEAD","PLAYER_ALIVE","PLAYER_UNGHOST","PLAYER_TARGET_CHANGED","UPDATE_MOUSEOVER_UNIT","NAME_PLATE_UNIT_ADDED"}) do frame:RegisterEvent(event) end
 pcall(frame.RegisterEvent,frame,"PARTY_KILL")
 frame:RegisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN")
+frame:SetScript("OnUpdate",function(_,delta)
+    debugElapsed=debugElapsed+delta
+    if debugElapsed>=1 then debugElapsed=0;pcall(pollHonor) end
+end)
+local slash=SlashCmdList.FOREVERKOS
+SlashCmdList.FOREVERKOS=function(input)
+    local command,rest=input:match("^(%S*)%s*(.-)$")
+    if command=="pvpdebug" then
+        pvpDebug=rest~="off";debugElapsed=0
+        print("|cffffb45b<in the bin> KoS List:|r PvP diagnostics " .. (pvpDebug and "on. Assist one world-PvP kill, wait a few seconds, then copy PVPDEBUG lines." or "off."))
+        if pvpDebug then
+            trace("Tracking allowed=" .. tostring(trackingAllowed()))
+            for _,key in ipairs({"COMBATLOG_HONORGAIN","COMBATLOG_HONORGAIN_NO_RANK","COMBATLOG_HONORGAIN_EXHAUSTION","COMBATLOG_HONORGAIN_NO_RANK_EXHAUSTION"}) do
+                local value=_G[key]
+                if readable(value) and type(value)=="string" then trace(key .. "=" .. value) end
+            end
+            trace("Session honor API=" .. type(GetPVPSessionStats));pcall(pollHonor)
+        end
+        return
+    end
+    return slash(input)
+end
