@@ -4,6 +4,7 @@ local frame = CreateFrame("Frame")
 local guild, db, me
 local roster, queue, requests, seen = {}, {}, {}, {}
 local rosterGUIDs={}
+local queuedMessages={}
 local accessDelivery={}
 local announced={}
 local announcedGuilds={}
@@ -152,6 +153,7 @@ local function rebuild()
     if scope ~= guild then
         guild, db = scope, nil
         queue, seen, requests = {}, {}, {}
+        queuedMessages={}
         announced={};announcedGuilds={};accessDelivery={}
         lastRequest = -100
         if scope then
@@ -184,9 +186,41 @@ local function merge(r)
     end
 end
 local function enqueue(msg, channel, target)
-    if #msg <= 250 and #queue < 5000 then
-        queue[#queue+1] = {msg, channel or "GUILD", target}
+    if #msg>250 then return end
+    channel=channel or "GUILD"
+    local code=msg:sub(1,2)
+    local live=channel=="GUILD" and code=="S\t"
+    local classInfo=channel=="GUILD" and code=="I\t"
+    local identity=live and (msg:match("^S\t[^\t]+\t([^\t]+)") or msg) or msg
+    local id=channel .. "\001" .. (target or "") .. "\001" .. (live and "sighting:" or "") .. identity
+    local pending=queuedMessages[id]
+    if pending then
+        if live then pending[1]=msg;pending[5]=GetTime() end
+        return
     end
+    local bulk=channel=="WHISPER" and (code=="C\t" or code=="H\t" or code=="U\t" or code=="N\t" or code=="D\t")
+    local priority=(live or classInfo) and 0 or (bulk and 2 or 1)
+    if #queue>=5000 then
+        if not live and not classInfo then return end
+        -- Fresh sightings must still fit when history has filled the queue.
+        local dropped=table.remove(queue,#queue);queuedMessages[dropped[6]]=nil
+    end
+    local item={msg,channel,target,priority,GetTime(),id}
+    queue[#queue+1]=item;queuedMessages[id]=item
+end
+local function nextMessage()
+    while #queue>0 do
+        local index=1
+        for i=2,#queue do if queue[i][4]<queue[index][4] then index=i end end
+        local item=table.remove(queue,index);queuedMessages[item[6]]=nil
+        if item[4]~=0 or GetTime()-item[5]<=25 then return item end
+    end
+end
+local function pendingSnapshot(target)
+    for _,item in ipairs(queue) do
+        if item[2]=="WHISPER" and key(item[3])==key(target) then return true end
+    end
+    return false
 end
 local function packGrant(r)
     return table.concat({"G",r.rev,encode(r.editor),r.deleted and "1" or "0",encode(r.name)},"\t")
@@ -288,6 +322,10 @@ local function receive(prefix, message, channel, sender)
         end
         return
     end
+    if message:sub(1,2)=="I\t" then
+        if ForeverKoS.ReceiveSightingClass then ForeverKoS.ReceiveSightingClass(message,sender) end
+        return
+    end
     if message:sub(1,2) == "S\t" then
         if ForeverKoS.ReceiveSighting then ForeverKoS.ReceiveSighting(message, sender, isOfficer(sender),channel~="GUILD") end
         return
@@ -299,6 +337,7 @@ local function receive(prefix, message, channel, sender)
         return
     end
     if message == "Q" then
+        if pendingSnapshot(sender) then return end
         if GetTime() - (requests[senderKey] or -100) >= 60 then
             requests[senderKey] = GetTime()
             publish(sender)
@@ -364,7 +403,17 @@ function ForeverKoS.HandleMuteLink(link)
     ForeverKoS.SetSightingMute(name,action=="unmute" and 0 or 1)
 end
 if hooksecurefunc and SetItemRef then hooksecurefunc("SetItemRef",function(link)ForeverKoS.HandleMuteLink(link)end) end
-local function alert(name, reason, test, sighting, rule, level)
+local validClasses={WARRIOR=true,PALADIN=true,HUNTER=true,ROGUE=true,PRIEST=true,SHAMAN=true,MAGE=true,WARLOCK=true,DRUID=true,DEATHKNIGHT=true,MONK=true,DEMONHUNTER=true,EVOKER=true}
+function ForeverKoS.ValidClassToken(token) return type(token)=="string" and validClasses[token] and token or nil end
+function ForeverKoS.ClassColoredName(name,token)
+    token=ForeverKoS.ValidClassToken(token)
+    if token=="PRIEST" then return "|cffbfbfbf" .. displayName(name) .. "|r" end
+    local color=token and ((CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[token]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[token]))
+    if not color then return displayName(name) end
+    local function byte(v)return math.floor(math.max(0,math.min(1,v))*255+0.5)end
+    return string.format("|cff%02x%02x%02x%s|r",byte(color.r),byte(color.g),byte(color.b),displayName(name))
+end
+local function alert(name, reason, test, sighting, rule, level, classToken)
     if (not sighting or key(sighting.spotter)==key(me)) and ForeverKoS.IsSightingMuted(name) then return end
     if not test then
         local k=key(name)
@@ -385,7 +434,7 @@ local function alert(name, reason, test, sighting, rule, level)
     level=level or (sighting and sighting.level)
     local levelText=level and (level==-1 and "Level ??" or ("Level " .. level))
     if levelText then reason=levelText .. (reason~="" and (" — " .. reason) or "") end
-    say((test and "TEST: " or "Spotted: ") .. displayName(name)
+    say((test and "TEST: " or "Spotted: ") .. ForeverKoS.ClassColoredName(name,classToken or (sighting and sighting.classToken))
         .. " spotted by " .. displayName(sighting and sighting.spotter or me or unitName("player") or "you")
         .. (reason ~= "" and (" — " .. clean(reason)) or "") .. location
         .. ((not sighting or key(sighting.spotter)==key(me)) and (" " .. muteLink(name)) or ""))
@@ -434,8 +483,13 @@ local function check(unit)
         local ok,value=pcall(UnitLevel,unit)
         if ok and type(value)=="number" and (value==-1 or (value>=1 and value<=1000 and value==math.floor(value))) then level=value end
     end
-    if ForeverKoS.RecordSighting then ForeverKoS.RecordSighting(name,enemyGuild,level) end
-    if db.enabled ~= false then alert(name, ForeverKoS.MatchReason(r), false,nil,r,level) end
+    local classToken
+    if UnitClass then
+        local ok,_,token=pcall(UnitClass,unit)
+        if ok and (not issecretvalue or not issecretvalue(token)) then classToken=ForeverKoS.ValidClassToken(token) end
+    end
+    if ForeverKoS.RecordSighting then ForeverKoS.RecordSighting(name,enemyGuild,level,classToken) end
+    if db.enabled ~= false then alert(name, ForeverKoS.MatchReason(r), false,nil,r,level,classToken) end
 end
 local function guardedCheck(unit)
     if ForeverKoS.CheckPersonal then pcall(ForeverKoS.CheckPersonal,unit) end
@@ -544,7 +598,7 @@ SlashCmdList.FOREVERKOS = function(input)
             end
         end
     elseif command == "status" then
-        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.2"))
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.3"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])
@@ -579,11 +633,14 @@ frame:SetScript("OnUpdate", function(_, delta)
         -- Mouseover identity can become readable after the initial event. Retry
         -- while it exists; the per-enemy cooldown prevents duplicate reports.
         if UnitExists("mouseover") then guardedCheck("mouseover") end
-        local item = table.remove(queue, 1)
+        local item = nextMessage()
         if item and db and C_ChatInfo then
             -- Recheck permissions at send time in case an officer was demoted.
             local cacheReply=item[2]=="WHISPER" and (item[1]:sub(1,2)=="C\t" or item[1]:sub(1,2)=="H\t" or item[1]:sub(1,2)=="U\t")
-            if item[1] == "Q" or item[1]=="P" or item[1]=="l" or item[1]:sub(1,2)=="K\t" or item[1]:sub(1,2)=="L\t" or item[1]:sub(1,2)=="N\t" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2)=="J\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3]) end
+            if item[1] == "Q" or item[1]=="P" or item[1]=="l" or item[1]:sub(1,2)=="K\t" or item[1]:sub(1,2)=="L\t" or item[1]:sub(1,2)=="N\t" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2)=="J\t" or item[1]:sub(1,2)=="I\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then
+                C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3])
+                if debugEnabled and item[1]:sub(1,2)=="S\t" then say("DEBUG sighting handed to guild transport; queued messages remaining: " .. #queue) end
+            end
         end
     end
     if refresh >= 300 then

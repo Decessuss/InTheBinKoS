@@ -24,22 +24,44 @@ local function merge(db,r)
         return true
     end
 end
-function api.RecordSighting(name,guildName,level)
+function api.RecordSighting(name,guildName,level,classToken)
     if api.IsSightingMuted and api.IsSightingMuted(name) then return end
     local db,me=records()
     if not db or not me or not active(db,name,guildName) then return end
     local map,x,y
     if api.SpotPosition then map,x,y=api.SpotPosition() end
-    local r={name=name,spotter=me,stamp=now(),map=map or 0,x=x or 0,y=y or 0,guildName=guildName,level=level}
+    local r={name=name,spotter=me,stamp=now(),map=map or 0,x=x or 0,y=y or 0,guildName=guildName,level=level,classToken=classToken}
     if merge(db,r) then
         local message=pack(r)
-        if #message<=250 then api.QueueSighting(message) end
+        if #message<=250 then
+            if api.ValidClassToken(classToken) then
+                local metadata=table.concat({"I",r.stamp,encode(name),classToken},"\t")
+                if #metadata<=250 then api.QueueSighting(metadata) end
+            end
+            api.QueueSighting(message)
+        end
     end
+end
+function api.ReceiveSightingClass(message,sender)
+    local stamp,name,token=message:match("^I\t(%d+)\t([^\t]+)\t([A-Z]+)$")
+    stamp=tonumber(stamp);token=api.ValidClassToken(token)
+    if not stamp or not token or stamp>now()+120 or stamp<now()-30 then return end
+    name=api.NormalizeName(decode(name));local db=records()
+    if not db or not name then return end
+    db.sightingClasses=db.sightingClasses or {}
+    -- Bound the short-lived metadata cache even when a sender sends no sighting.
+    for k,r in pairs(db.sightingClasses) do if r.stamp<now()-30 then db.sightingClasses[k]=nil end end
+    local k=api.NameKey(sender) .. ":" .. api.NameKey(name)
+    local count=0;for _ in pairs(db.sightingClasses)do count=count+1 end
+    if count>=256 and not db.sightingClasses[k] then return end
+    db.sightingClasses[k]={stamp=stamp,token=token}
+    local r=db.sightings and db.sightings[api.NameKey(name)]
+    if r and r.stamp==stamp and api.NameKey(r.spotter)==api.NameKey(sender) then r.classToken=token end
 end
 function api.ReceiveSighting(message,sender,isOfficer,isHistory)
     local db=records()
     if not db then return end
-    local guildName,level
+    local guildName,level,classToken
     local withoutLevel,encodedLevel=message:match("^(S\t.+)\tL:(%-?%d+)$")
     if withoutLevel then
         level=tonumber(encodedLevel)
@@ -64,7 +86,9 @@ function api.ReceiveSighting(message,sender,isOfficer,isHistory)
     if map~=0 and x==0 and y==0 then return end
     if map~=0 and C_Map and C_Map.GetMapInfo and not C_Map.GetMapInfo(map) then return end
     if not active(db,name,guildName) then return end
-    local r={name=name,spotter=spotter,stamp=stamp,map=map,x=x/100000,y=y/100000,guildName=guildName,level=level}
+    local metadata=db.sightingClasses and db.sightingClasses[api.NameKey(spotter) .. ":" .. api.NameKey(name)]
+    if metadata and metadata.stamp==stamp then classToken=metadata.token end
+    local r={name=name,spotter=spotter,stamp=stamp,map=map,x=x/100000,y=y/100000,guildName=guildName,level=level,classToken=classToken}
     local changed=merge(db,r)
     local age=now()-stamp
     if changed and not isHistory and age>=-15 and age<=30

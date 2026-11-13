@@ -283,3 +283,12 @@ Reimport the updated card to handle FOREVER_KOS_SLAIN(enemy, killer, count) alon
 - Added **[Mute 30m]** to your own sighting notifications. Silence that specific player's sightings from your character for 30 minutes, with **[Unmute]** to end it early.
 - Muted sightings do not play your alerts or broadcast another report to the guild. Other spotters can still report that player, and kill tracking continues.
 - Removed the temporary repeating test sightings. Mutes are local to the current session and clear on reload/logout.
+
+## 0.6.3 beta
+
+- Fixed fresh sightings getting stuck behind large sync backlogs. Live reports now take priority over cached history.
+- Stopped duplicate pending sync replies and repeated queued messages from adding unnecessary traffic. Expired live reports are discarded.
+- Target names now use class colours in sighting chat alerts, including fresh reports from guild members using this update. Priests use light grey for readability.
+- Sightings remain addon notifications; nothing is posted to normal guild chat.
+
+Existing lists, settings and PvP counters are preserved. Everyone should update for shared class colours and the queue fix. No aura reimport is needed for these changes.
