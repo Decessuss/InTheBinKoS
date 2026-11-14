@@ -8,6 +8,8 @@ local queuedMessages={}
 local accessDelivery={}
 local announced={}
 local announcedGuilds={}
+local localSoundTimes={}
+local localGuildSoundTimes={}
 local debugEnabled=false
 local accessDebug=false
 local debugSeen={}
@@ -154,7 +156,7 @@ local function rebuild()
         guild, db = scope, nil
         queue, seen, requests = {}, {}, {}
         queuedMessages={}
-        announced={};announcedGuilds={};accessDelivery={}
+        announced={};announcedGuilds={};localSoundTimes={};localGuildSoundTimes={};accessDelivery={}
         lastRequest = -100
         if scope then
             db=migrateGuild(scope)
@@ -413,8 +415,35 @@ function ForeverKoS.ClassColoredName(name,token)
     local function byte(v)return math.floor(math.max(0,math.min(1,v))*255+0.5)end
     return string.format("|cff%02x%02x%02x%s|r",byte(color.r),byte(color.g),byte(color.b),displayName(name))
 end
+function ForeverKoS.SightingInMyZone(sighting)
+    if not sighting or type(sighting.map)~="number" or sighting.map<=0 then return false end
+    local ok,same=pcall(function()
+        if C_Map and C_Map.GetBestMapForUnit then
+            local map=C_Map.GetBestMapForUnit("player")
+            if map and map==sighting.map then return true end
+        end
+        local zone=GetRealZoneText and GetRealZoneText() or GetZoneText()
+        local info=C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(sighting.map)
+        return type(zone)=="string" and zone~="" and info and info.name==zone or false
+    end)
+    return ok and same==true
+end
 local function alert(name, reason, test, sighting, rule, level, classToken)
     if (not sighting or key(sighting.spotter)==key(me)) and ForeverKoS.IsSightingMuted(name) then return end
+    local localOnly=ForeverKoS.Settings().sightingSoundSameZoneOnly==true
+    local personallySpotted=not sighting or key(sighting.spotter)==key(me)
+    -- Distant silent reports must not consume the sound cooldown for a later
+    -- local/same-zone detection. Chat/aura cooldowns remain shared as before.
+    if localOnly and (personallySpotted or ForeverKoS.SightingInMyZone(sighting)) and not test and db and db.sound~=false then
+        local k=key(name)
+        local guildKey=rule and rule.kind=="guild" and string.lower(rule.name)
+        if (not localSoundTimes[k] or GetTime()-localSoundTimes[k]>=60)
+                and (not guildKey or not localGuildSoundTimes[guildKey] or GetTime()-localGuildSoundTimes[guildKey]>=60) then
+            localSoundTimes[k]=GetTime()
+            if guildKey then localGuildSoundTimes[guildKey]=GetTime() end
+            ForeverKoS.PlaySightingSound()
+        end
+    end
     if not test then
         local k=key(name)
         if k and announced[k] and GetTime()-announced[k]<60 then return end
@@ -438,7 +467,7 @@ local function alert(name, reason, test, sighting, rule, level, classToken)
         .. " spotted by " .. displayName(sighting and sighting.spotter or me or unitName("player") or "you")
         .. (reason ~= "" and (" — " .. clean(reason)) or "") .. location
         .. ((not sighting or key(sighting.spotter)==key(me)) and (" " .. muteLink(name)) or ""))
-    if db and db.sound ~= false then ForeverKoS.PlaySightingSound() end
+    if db and db.sound ~= false and (test or not localOnly) then ForeverKoS.PlaySightingSound() end
     local wa = ForeverAuras or WeakAuras
     local zone=sighting and ForeverKoS.SightingZone and ForeverKoS.SightingZone(sighting) or GetZoneText() or ""
     if wa and wa.ScanEvents then wa.ScanEvents("FOREVER_KOS_SPOTTED", name, reason, zone,
@@ -598,7 +627,7 @@ SlashCmdList.FOREVERKOS = function(input)
             end
         end
     elseif command == "status" then
-        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.3"))
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.4"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])

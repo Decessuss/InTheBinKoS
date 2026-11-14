@@ -292,3 +292,12 @@ Reimport the updated card to handle FOREVER_KOS_SLAIN(enemy, killer, count) alon
 - Sightings remain addon notifications; nothing is posted to normal guild chat.
 
 Existing lists, settings and PvP counters are preserved. Everyone should update for shared class colours and the queue fix. No aura reimport is needed for these changes.
+
+## 0.6.4 beta
+
+- Added **Only hear sightings in my zone** under Settings.
+- Turn it on to hear your own sightings and reports from spotters in the same zone. Leave it off to hear all sightings.
+- Reports from other zones still appear in chat and the aura, without the sound.
+- The existing Sound checkbox and individual player mutes still apply.
+
+Hope you're enjoying it!
