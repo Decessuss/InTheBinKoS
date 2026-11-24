@@ -301,3 +301,11 @@ Existing lists, settings and PvP counters are preserved. Everyone should update 
 - The existing Sound checkbox and individual player mutes still apply.
 
 Hope you're enjoying it!
+
+## 0.6.5 beta
+
+- Fixed queued sync replies continuing to send to players who have logged off, causing repeated "No player named ... is currently playing" messages.
+- The addon now checks the recipient before sending and cancels their remaining queued replies when the server reports them unavailable.
+- Syncing with other online members and sighting notifications continue as normal.
+
+Automated checks passed. Anyone who was seeing the spam, please let us know if it returns after updating.

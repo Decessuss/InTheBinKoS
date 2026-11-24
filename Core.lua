@@ -5,6 +5,8 @@ local guild, db, me
 local roster, queue, requests, seen = {}, {}, {}, {}
 local rosterGUIDs={}
 local queuedMessages={}
+local unavailableWhispers={}
+local lastWhisperTarget,lastWhisperTime
 local accessDelivery={}
 local announced={}
 local announcedGuilds={}
@@ -155,7 +157,7 @@ local function rebuild()
     if scope ~= guild then
         guild, db = scope, nil
         queue, seen, requests = {}, {}, {}
-        queuedMessages={}
+        queuedMessages={};unavailableWhispers={};lastWhisperTarget=nil;lastWhisperTime=nil
         announced={};announcedGuilds={};localSoundTimes={};localGuildSoundTimes={};accessDelivery={}
         lastRequest = -100
         if scope then
@@ -187,9 +189,48 @@ local function merge(r)
         return true
     end
 end
+local function whisperUnavailable(target)
+    local k=key(target)
+    if not k then return true end
+    if unavailableWhispers[k] and GetTime()-unavailableWhispers[k]<60 then return true end
+    -- Read the current roster at send time: a cached reply can outlive its recipient.
+    for i=1,GetNumGuildMembers() do
+        local name,_,_,_,_,_,_,_,online=GetGuildRosterInfo(i)
+        if key(name)==k then return online==false or online==0 end
+    end
+    return true
+end
+local function cancelWhispers(target)
+    local k=key(target);if not k then return end
+    unavailableWhispers[k]=GetTime()
+    for i=#queue,1,-1 do
+        local item=queue[i]
+        if item[2]=="WHISPER" and key(item[3])==k then
+            table.remove(queue,i);queuedMessages[item[6]]=nil
+        end
+    end
+end
+function ForeverKoS.HandleOfflineSystemMessage(message)
+    if type(message)~="string" or (issecretvalue and issecretvalue(message)) then return end
+    local format=ERR_CHAT_PLAYER_NOT_FOUND_S
+    if type(format)~="string" then return end
+    local start,finish=format:find("%s",1,true)
+    if not start then return end
+    local function literal(s)return(s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])","%%%1"))end
+    local name=message:match("^" .. literal(format:sub(1,start-1)) .. "(.+)" .. literal(format:sub(finish+1)) .. "$")
+    if not name then return end
+    local k=key(name)
+    -- Only act on our pending or just-sent addon whispers, never unrelated chat.
+    if lastWhisperTarget==k and lastWhisperTime and GetTime()-lastWhisperTime<=5 then cancelWhispers(name);return end
+    -- Also cancel work that has not reached the transport yet.
+    for _,item in ipairs(queue) do
+        if item[2]=="WHISPER" and key(item[3])==k then cancelWhispers(name);return end
+    end
+end
 local function enqueue(msg, channel, target)
     if #msg>250 then return end
     channel=channel or "GUILD"
+    if channel=="WHISPER" and whisperUnavailable(target) then return end
     local code=msg:sub(1,2)
     local live=channel=="GUILD" and code=="S\t"
     local classInfo=channel=="GUILD" and code=="I\t"
@@ -215,7 +256,9 @@ local function nextMessage()
         local index=1
         for i=2,#queue do if queue[i][4]<queue[index][4] then index=i end end
         local item=table.remove(queue,index);queuedMessages[item[6]]=nil
-        if item[4]~=0 or GetTime()-item[5]<=25 then return item end
+        if item[2]=="WHISPER" and whisperUnavailable(item[3]) then
+            cancelWhispers(item[3])
+        elseif item[4]~=0 or GetTime()-item[5]<=25 then return item end
     end
 end
 local function pendingSnapshot(target)
@@ -627,7 +670,7 @@ SlashCmdList.FOREVERKOS = function(input)
             end
         end
     elseif command == "status" then
-        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.4"))
+        say("Addon version: " .. ((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("InTheBinKoS","Version")) or (GetAddOnMetadata and GetAddOnMetadata("InTheBinKoS","Version")) or "0.6.5"))
         say("Guild: " .. (guild or "none") .. "; editing: " .. (permitted(me) and "allowed" or "unavailable") .. "; queued messages: " .. #queue)
         local order=rankOrder(me);local flags=rankFlags(order)
         say("Permissions: native officer=" .. tostring(nativeOfficer()) .. "; roster rank=" .. tostring(roster[key(me)])
@@ -637,6 +680,7 @@ SlashCmdList.FOREVERKOS = function(input)
     end
 end
 frame:SetScript("OnEvent", function(_, event, ...)
+    if event=="CHAT_MSG_SYSTEM" then ForeverKoS.HandleOfflineSystemMessage(...);return end
     if event == "ADDON_LOADED" then
         if ... ~= "InTheBinKoS" and ... ~= "ForeverKoS" then return end
         ForeverKoSDB = ForeverKoSDB or {guilds={}}
@@ -667,6 +711,7 @@ frame:SetScript("OnUpdate", function(_, delta)
             -- Recheck permissions at send time in case an officer was demoted.
             local cacheReply=item[2]=="WHISPER" and (item[1]:sub(1,2)=="C\t" or item[1]:sub(1,2)=="H\t" or item[1]:sub(1,2)=="U\t")
             if item[1] == "Q" or item[1]=="P" or item[1]=="l" or item[1]:sub(1,2)=="K\t" or item[1]:sub(1,2)=="L\t" or item[1]:sub(1,2)=="N\t" or item[1]:sub(1,2)=="V\t" or item[1]:sub(1,2)=="J\t" or item[1]:sub(1,2)=="I\t" or item[1]:sub(1,2) == "S\t" or cacheReply or permitted(me) then
+                if item[2]=="WHISPER" then lastWhisperTarget=key(item[3]);lastWhisperTime=GetTime() end
                 C_ChatInfo.SendAddonMessage(PREFIX, item[1], item[2], item[3])
                 if debugEnabled and item[1]:sub(1,2)=="S\t" then say("DEBUG sighting handed to guild transport; queued messages remaining: " .. #queue) end
             end
@@ -678,4 +723,4 @@ frame:SetScript("OnUpdate", function(_, delta)
         request()
     end
 end)
-for _, e in ipairs({"ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_GUILD_UPDATE", "GUILD_ROSTER_UPDATE", "GUILD_RANKS_UPDATE", "CHAT_MSG_ADDON", "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT"}) do frame:RegisterEvent(e) end
+for _, e in ipairs({"CHAT_MSG_SYSTEM", "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_GUILD_UPDATE", "GUILD_ROSTER_UPDATE", "GUILD_RANKS_UPDATE", "CHAT_MSG_ADDON", "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT"}) do frame:RegisterEvent(e) end
